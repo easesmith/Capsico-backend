@@ -1,0 +1,80 @@
+const mongoose = require("mongoose");
+
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      first: {
+        type: String,
+        required: false,
+      },
+      last: {
+        type: String,
+        required: false,
+      },
+    },
+
+    phone: {
+      type: Number,
+      required: true,
+      unique: true,
+    },
+
+    email: {
+      type: String,
+      required: false,
+      // unique: true,
+    },
+
+    referralCode: {
+      type: String,
+    },
+
+    image: {
+      type: String,
+      required: false,
+    },
+
+    vegMode: {
+      type: Boolean,
+    },
+
+    isCodAvailable: {
+      type: Boolean,
+    },
+
+    addresses: [
+      {
+        lat: {
+          type: Number,
+          required: false,
+        },
+        lng: {
+          type: Number,
+          required: false,
+        },
+        state: {
+          type: String,
+          required: false,
+        },
+        city: {
+          type: String,
+          required: false,
+        },
+        pinCode: {
+          type: String,
+          required: false,
+        },
+        addressLine: {
+          type: String,
+        },
+      }
+    ],
+  },
+  {
+    timestamps: true,
+  }
+);
+
+
+const User = mongoose.model("User", userSchema);
+module.exports = User;
