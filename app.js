@@ -8,7 +8,9 @@ const cors = require("cors");
 
 const AppError = require("./utils/appError");
 const globalErrorHandler = require("./controllers/errorController");
-const userRouter = require("./routes/userRoutes");
+const session = require("express-session");
+const passport = require("passport");
+const restaurantRouter = require("./routes/restaurantRoutes");
 
 const limiter = rateLimit({
     windowMs: 1 * 60 * 1000,
@@ -25,7 +27,7 @@ if (process.env.NODE_ENV === "development") {
 app.use(session({
     resave: false,
     saveUninitialized: true,
-    secret: process.env.SESSION_SECRET 
+    secret: process.env.SESSION_SECRET
 }));
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(cookieParser());
@@ -37,18 +39,18 @@ app.use(
     })
 );
 
-// Test middleware
-// app.use((req, res, next) => {
-//     console.log('test middleware');
-//     req.requestTime = new Date().toISOString();
-//     next();
-// });
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Apply the rate limiter to all requests
 // app.use(limiter);
 
 
+const userRouter = require("./routes/userRoutes");
+
 app.use("/api/v1/user", userRouter);
+app.use("/api/v1/restaurant", restaurantRouter);
 
 
 // app.get("*", (req, res) => {

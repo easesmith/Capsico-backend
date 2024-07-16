@@ -2,6 +2,11 @@ const mongoose = require("mongoose");
 
 const restaurantSchema = new mongoose.Schema(
     {
+        name: {
+            type: String,
+            required: true,
+        },
+
         email: {
             type: String,
             required: true,
@@ -58,7 +63,7 @@ const restaurantSchema = new mongoose.Schema(
                 categoryId: {
                     type: mongoose.Types.ObjectId,
                     ref: "Category",
-                    required: true,
+                    required: false,
                 },
                 discountPercent: {
                     type: String
@@ -66,7 +71,8 @@ const restaurantSchema = new mongoose.Schema(
             }
         ],
         isSubscriptionActive: {
-            type: Boolean
+            type: Boolean,
+            default: false
         }
     },
     {

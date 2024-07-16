@@ -6,13 +6,14 @@ const catchAsync = require('./../utils/catchAsync');
 const AppError = require('./../utils/appError');
 const User = require('../models/userModel');
 const { verifyOtpSms, verifyOtpEmail } = require('../utils/sendSMS');
+const Restaurant = require('../models/restaurantModel');
 
 const signToken = id => {
   return jwt.sign({ id }, process.env.JWT_SECRET);
 };
 
-const createSendToken = (user, statusCode, res) => {
-  const token = signToken(user._id);
+const createSendToken = (model, statusCode, res) => {
+  const token = signToken(model._id);
   const cookieOptions = {
     expires: new Date(
       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
@@ -26,7 +27,7 @@ const createSendToken = (user, statusCode, res) => {
 
   res.status(statusCode).json({
     status: 'success',
-    user: user.toObject(), // Convert user to a plain object
+    data: model.toObject(), // Convert user to a plain object
   });
 };
 
@@ -46,7 +47,7 @@ exports.userSignup = catchAsync(async (req, res, next) => {
   }
 
   // Check if the user already exists
-  let user = await User.find({
+  let user = await User.findOne({
     $or: [
       { phone },
       { email }
@@ -73,6 +74,29 @@ exports.userSignup = catchAsync(async (req, res, next) => {
   // Send token
   createSendToken(user, user.isNew ? 201 : 200, res);
 });
+
+
+exports.addRestaurant = catchAsync(async (req, res, next) => {
+  const { name, email, password, phone, restaurantType, address, categoryServes, isSubscriptionActive } = req.body;
+
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  const newRestaurant = new Restaurant({
+    name,
+    phone,
+    email,
+    password: passwordHash,
+    address,
+    restaurantType,
+    categoryServes,
+    isSubscriptionActive
+  });
+
+  await newRestaurant.save();
+
+  createSendToken(newRestaurant, 200, res);
+  // res.status(200).json({ message: 'Restaurant added successfully' });
+})
 
 
 exports.authenicateUser = catchAsync(async (req, res, next) => {
