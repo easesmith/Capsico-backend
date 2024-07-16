@@ -5,53 +5,73 @@ const bcrypt = require("bcryptjs");
 const catchAsync = require('./../utils/catchAsync');
 const AppError = require('./../utils/appError');
 const User = require('../models/userModel');
-const { verifyOtpSms } = require('../utils/sendSMS');
+const { verifyOtpSms, verifyOtpEmail } = require('../utils/sendSMS');
 
 const signToken = id => {
   return jwt.sign({ id }, process.env.JWT_SECRET);
 };
 
 const createSendToken = (user, statusCode, res) => {
-  let modifiedUser = { ...user.toObject() };
   const token = signToken(user._id);
   const cookieOptions = {
     expires: new Date(
       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
     ),
-    httpOnly: true
+    httpOnly: true,
   };
-  //   if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
-  console.log("user", modifiedUser);
+  // Uncomment the following line in production
+  // if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
+
   res.cookie('token', token, cookieOptions);
-  res.cookie('user', JSON.stringify(modifiedUser), {
-    expires: new Date(
-      Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
-    ),
-    httpOnly: false
-  })
 
   res.status(statusCode).json({
     status: 'success',
-    user
+    user: user.toObject(), // Convert user to a plain object
   });
 };
 
 //user routes
 exports.userSignup = catchAsync(async (req, res, next) => {
-  const { enteredOtp, phone } = req.body;
+  const { enteredOtp, phone, email, isEmail } = req.body;
 
-  await verifyOtpSms(phone, enteredOtp, res);
+  console.log("body", req.body);
 
-  const newUser = new User({
-    phone
+  // Verify OTP
+
+  if (isEmail) {
+    await verifyOtpEmail(email, enteredOtp);
+  }
+  else {
+    await verifyOtpSms(phone, enteredOtp);
+  }
+
+  // Check if the user already exists
+  let user = await User.find({
+    $or: [
+      { phone },
+      { email }
+    ]
   });
+  console.log("user", user);
+  if (user) {
+    // If yes, update user
+    if (isEmail) {
+      user.email = email;
+    }
+    else {
+      user.phone = phone;
+    }
+    await user.save();
+  }
 
-  await newUser.save();
+  if (!user) {
+    // If not, create a new user
+    user = new User({ phone, email });
+    await user.save();
+  }
 
-  res.status(201).json({
-    success: true,
-    message: "User successfully Created! Kindly Login..."
-  })
+  // Send token
+  createSendToken(user, user.isNew ? 201 : 200, res);
 });
 
 

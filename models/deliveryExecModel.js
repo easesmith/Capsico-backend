@@ -24,7 +24,7 @@ const deliveryExecSchema = new mongoose.Schema(
         type: {
             type: String,
             required: true,
-            enum: ["veg", "non-veg", "both"]
+            enum: ["capsico", "quickly", "both"]
         },
 
         address: {

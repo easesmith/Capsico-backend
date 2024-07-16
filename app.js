@@ -22,6 +22,11 @@ if (process.env.NODE_ENV === "development") {
     app.use(morgan("dev"));
 }
 
+app.use(session({
+    resave: false,
+    saveUninitialized: true,
+    secret: process.env.SESSION_SECRET 
+}));
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "build")));
