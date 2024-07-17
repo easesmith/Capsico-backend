@@ -77,7 +77,7 @@ exports.userSignup = catchAsync(async (req, res, next) => {
 
 
 exports.addRestaurant = catchAsync(async (req, res, next) => {
-  const { name, email, password, phone, restaurantType, address, categoryServes, isSubscriptionActive } = req.body;
+  const { name, email, password, phone, restaurantType, lat, lng, addressLine, city, state, pinCode, categoryServes, isSubscriptionActive } = req.body;
 
   const passwordHash = await bcrypt.hash(password, 12);
 
@@ -86,7 +86,7 @@ exports.addRestaurant = catchAsync(async (req, res, next) => {
     phone,
     email,
     password: passwordHash,
-    address,
+    address: { lat, lng, addressLine, city, state, pinCode },
     restaurantType,
     categoryServes,
     isSubscriptionActive

@@ -57,5 +57,7 @@ router.get("/get-all-addresses", authController.authenicateUser, userController.
 router.post("/add-address", authController.authenicateUser, userController.addAddress);
 router.delete('/remove-address', authController.authenicateUser, validate.validateFields, userController.removeAddress);
 
+router.get('/get-restaurantNearYou',userController.getRestaurantsNearUser);
+
 
 module.exports = router;

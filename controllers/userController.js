@@ -1,3 +1,4 @@
+const Restaurant = require("../models/restaurantModel");
 const User = require("../models/userModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
@@ -128,3 +129,41 @@ exports.removeAddress = catchAsync(async (req, res, next) => {
 
     res.status(200).json({ message: 'Address removed successfully' });
 })
+
+exports.getRestaurantsNearUser = catchAsync(async (req, res, next) => {
+    const userId = req.user._id;
+
+    // Fetch user's coordinates
+    const user = await User.findById(userId);
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: 'User not found'
+        });
+    }
+
+    const userCoordinates = user.addresses[0]; // Assuming you have only one address per user for simplicity
+    const userLat = userCoordinates.lat;
+    const userLng = userCoordinates.lng;
+
+    // Perform geospatial query to find nearby restaurants
+    const restaurants = await Restaurant.aggregate([
+        {
+            $geoNear: {
+                near: {
+                    type: 'Point',
+                    coordinates: [userLng, userLat]
+                },
+                distanceField: 'distance',
+                spherical: true,
+                maxDistance: 10000, // Max distance in meters (adjust as needed)
+            }
+        }
+    ]);
+
+    res.status(200).json({
+        success: true,
+        restaurants,
+        message: 'Restaurants near user retrieved successfully'
+    });
+});
