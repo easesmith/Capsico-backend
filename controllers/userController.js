@@ -1,3 +1,4 @@
+const Order = require("../models/orderModel");
 const Restaurant = require("../models/restaurantModel");
 const User = require("../models/userModel");
 const AppError = require("../utils/appError");
@@ -131,20 +132,11 @@ exports.removeAddress = catchAsync(async (req, res, next) => {
 })
 
 exports.getRestaurantsNearUser = catchAsync(async (req, res, next) => {
-    const userId = req.user._id;
+    const { lat, lng } = req.query;
 
-    // Fetch user's coordinates
-    const user = await User.findById(userId);
-    if (!user) {
-        return res.status(404).json({
-            success: false,
-            message: 'User not found'
-        });
+    if (!lat || !lng) {
+        return next(new AppError('Latitude and Longitude are required.', 400));
     }
-
-    const userCoordinates = user.addresses[0]; // Assuming you have only one address per user for simplicity
-    const userLat = userCoordinates.lat;
-    const userLng = userCoordinates.lng;
 
     // Perform geospatial query to find nearby restaurants
     const restaurants = await Restaurant.aggregate([
@@ -152,11 +144,11 @@ exports.getRestaurantsNearUser = catchAsync(async (req, res, next) => {
             $geoNear: {
                 near: {
                     type: 'Point',
-                    coordinates: [userLng, userLat]
+                    coordinates: [parseFloat(lng), parseFloat(lat)]
                 },
                 distanceField: 'distance',
                 spherical: true,
-                maxDistance: 10000, // Max distance in meters (adjust as needed)
+                maxDistance: 10000, // 10 kilometers
             }
         }
     ]);
@@ -165,5 +157,36 @@ exports.getRestaurantsNearUser = catchAsync(async (req, res, next) => {
         success: true,
         restaurants,
         message: 'Restaurants near user retrieved successfully'
+    });
+});
+
+exports.getUserProfile = catchAsync(async (req, res, next) => {
+    const userId = req?.user?._id;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+        return next(new AppError('User not found.', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        data: user,
+    });
+});
+
+
+exports.getUserOrders = catchAsync(async (req, res, next) => {
+    const userId = req?.user?._id;
+
+    const orders = await Order.find({ userId }); // Adjust fields to populate as necessary
+
+    if (!orders) {
+        return next(new AppError('No orders found for this user.', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        data: orders,
     });
 });

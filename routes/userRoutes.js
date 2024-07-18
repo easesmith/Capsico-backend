@@ -57,7 +57,11 @@ router.get("/get-all-addresses", authController.authenicateUser, userController.
 router.post("/add-address", authController.authenicateUser, userController.addAddress);
 router.delete('/remove-address', authController.authenicateUser, validate.validateFields, userController.removeAddress);
 
-router.get('/get-restaurantNearYou',userController.getRestaurantsNearUser);
+router.get('/get-restaurantNearUser', authController.authenicateUser, userController.getRestaurantsNearUser); // 18/07/24
+
+router.get('/get-user-profile', authController.authenicateUser, userController.getUserProfile); // 18/07/24
+
+router.get('/get-user-orders', authController.authenicateUser, userController.getUserOrders); // 18/07/24
 
 
 module.exports = router;

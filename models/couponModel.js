@@ -10,6 +10,7 @@ const couponSchema = new mongoose.Schema(
         code: {
             type: String,
             required: true,
+            unique:true
         },
 
         expiry: {
@@ -18,7 +19,7 @@ const couponSchema = new mongoose.Schema(
         },
 
         type: {
-            type: Date,
+            type: String,
             required: true,
             enum: ["cart", "freebies", "free delivery"]
         },

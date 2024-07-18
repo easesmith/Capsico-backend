@@ -30,6 +30,11 @@ const userSchema = new mongoose.Schema(
 
     vegMode: {
       type: Boolean,
+      default:false
+    },
+
+    vegModeType: {
+      type: String,
     },
 
     isCodAvailable: {

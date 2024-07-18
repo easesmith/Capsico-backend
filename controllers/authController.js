@@ -7,6 +7,8 @@ const AppError = require('./../utils/appError');
 const User = require('../models/userModel');
 const { verifyOtpSms, verifyOtpEmail } = require('../utils/sendSMS');
 const Restaurant = require('../models/restaurantModel');
+const { default: mongoose } = require('mongoose');
+const Category = require('../models/categoryModel');
 
 const signToken = id => {
   return jwt.sign({ id }, process.env.JWT_SECRET);
@@ -79,6 +81,22 @@ exports.userSignup = catchAsync(async (req, res, next) => {
 exports.addRestaurant = catchAsync(async (req, res, next) => {
   const { name, email, password, phone, restaurantType, lat, lng, addressLine, city, state, pinCode, categoryServes, isSubscriptionActive } = req.body;
 
+  if (!name || !email || !password || !phone || !restaurantType || !addressLine || !city || !state || !pinCode || !lat || !lng) {
+    return next(new AppError('All fields are required.', 400));
+  }
+
+  if (categoryServes && categoryServes.length > 0) {
+    for (let category of categoryServes) {
+      if (!mongoose.Types.ObjectId.isValid(category.categoryId)) {
+        return next(new AppError('Invalid category ID.', 400));
+      }
+      const categoryExists = await Category.findById(category.categoryId);
+      if (!categoryExists) {
+        return next(new AppError(`Category with ID ${category.categoryId} not found.`, 404));
+      }
+    }
+  }
+
   const passwordHash = await bcrypt.hash(password, 12);
 
   const newRestaurant = new Restaurant({
@@ -86,7 +104,14 @@ exports.addRestaurant = catchAsync(async (req, res, next) => {
     phone,
     email,
     password: passwordHash,
-    address: { lat, lng, addressLine, city, state, pinCode },
+    address: {
+      type: 'Point',
+      coordinates: [lng, lat],
+      addressLine,
+      city,
+      state,
+      pinCode
+    },
     restaurantType,
     categoryServes,
     isSubscriptionActive
