@@ -6,14 +6,20 @@ const upload = require('../middlewares/imgUpload');
 
 const router = express.Router();
 
+
+router.post('/login', authController.restaurantLogin); // 19/07/24
+
+// autheniation
+router.use(authController.authenicateRestaurant);
+
 // Restaurant routes
-router.post('/add-restaurant', authController.addRestaurant);
-router.patch('/update-restaurant/:id', restaurantController.updateRestaurant); // 18/07/24
+router.post('/add-restaurant', upload.array("images", 3), restaurantController.addRestaurant); // 19/07/24
+router.patch('/update-restaurant/:id', upload.array("images", 3), restaurantController.updateRestaurant); // 19/07/24
 router.delete('/delete-restaurant/:id', restaurantController.deleteRestaurant); // 18/07/24
 router.get('/get-restaurants', restaurantController.getRestaurants);
+router.get('/get-restaurant-details/:id', restaurantController.getRestaurantDetails); // 19/07/24
 router.get('/search-restaurant', restaurantController.searchRestaurants);
 router.get('/get-restaurantBy-category', restaurantController.getRestaurantByCategory);
-router.post("/get-restaurantBy-vegMode", authController.authenicateUser, restaurantController.getRestaurantByVegMode); // 18/07/24 remain
 
 // Category routes
 router.post('/add-category', upload.array("images", 3), restaurantController.addCategory);
@@ -31,5 +37,11 @@ router.post('/add-product', upload.array("images", 3), restaurantController.addP
 router.patch('/update-product/:id', upload.array("images", 3), restaurantController.updateProduct); // 18/07/24
 router.delete('/delete-product/:id', restaurantController.deleteProduct); // 18/07/24
 router.get('/get-productsBy-restaurantId/:restaurantId', restaurantController.getProductsByRestaurantId); // 18/07/24
+router.get('/get-product-details/:id', restaurantController.getProductDetails); // 19/07/24
 
-module.exports = router; 
+// Review routes
+router.post('/add-review', restaurantController.addReview); //* 19/07/24 check this
+router.get('/get-restaurant-reviews', restaurantController.getRestaurantReviews); // 19/07/24
+router.get('/get-product-reviews/:productId', restaurantController.getProductReviews); // 19/07/24
+
+module.exports = router;

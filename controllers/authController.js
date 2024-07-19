@@ -7,8 +7,6 @@ const AppError = require('./../utils/appError');
 const User = require('../models/userModel');
 const { verifyOtpSms, verifyOtpEmail } = require('../utils/sendSMS');
 const Restaurant = require('../models/restaurantModel');
-const { default: mongoose } = require('mongoose');
-const Category = require('../models/categoryModel');
 
 const signToken = id => {
   return jwt.sign({ id }, process.env.JWT_SECRET);
@@ -29,7 +27,7 @@ const createSendToken = (model, statusCode, res) => {
 
   res.status(statusCode).json({
     status: 'success',
-    data: model.toObject(), // Convert user to a plain object
+    data: model.toObject(),
   });
 };
 
@@ -77,51 +75,24 @@ exports.userSignup = catchAsync(async (req, res, next) => {
   createSendToken(user, user.isNew ? 201 : 200, res);
 });
 
+exports.restaurantLogin = catchAsync(async (req, res, next) => {
+  const { email, password } = req.body;
 
-exports.addRestaurant = catchAsync(async (req, res, next) => {
-  const { name, email, password, phone, restaurantType, lat, lng, addressLine, city, state, pinCode, categoryServes, isSubscriptionActive } = req.body;
-
-  if (!name || !email || !password || !phone || !restaurantType || !addressLine || !city || !state || !pinCode || !lat || !lng) {
-    return next(new AppError('All fields are required.', 400));
+  // 1. Check if email and password exist
+  if (!email || !password) {
+    return next(new AppError('Please provide email and password!', 400));
   }
 
-  if (categoryServes && categoryServes.length > 0) {
-    for (let category of categoryServes) {
-      if (!mongoose.Types.ObjectId.isValid(category.categoryId)) {
-        return next(new AppError('Invalid category ID.', 400));
-      }
-      const categoryExists = await Category.findById(category.categoryId);
-      if (!categoryExists) {
-        return next(new AppError(`Category with ID ${category.categoryId} not found.`, 404));
-      }
-    }
+  // 2. Check if the restaurant exists and the password is correct
+  const restaurant = await Restaurant.findOne({ email }).select('+password');
+
+  if (!restaurant || !(await bcrypt.compare(password, restaurant.password))) {
+    return next(new AppError('Incorrect email or password', 401));
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
-
-  const newRestaurant = new Restaurant({
-    name,
-    phone,
-    email,
-    password: passwordHash,
-    address: {
-      type: 'Point',
-      coordinates: [lng, lat],
-      addressLine,
-      city,
-      state,
-      pinCode
-    },
-    restaurantType,
-    categoryServes,
-    isSubscriptionActive
-  });
-
-  await newRestaurant.save();
-
-  createSendToken(newRestaurant, 200, res);
-  // res.status(200).json({ message: 'Restaurant added successfully' });
-})
+  // 3. If everything is okay, send token to client
+  createSendToken(restaurant, 200, res);
+});
 
 
 exports.authenicateUser = catchAsync(async (req, res, next) => {
@@ -148,5 +119,33 @@ exports.authenicateUser = catchAsync(async (req, res, next) => {
 
   // GRANT ACCESS TO PROTECTED ROUTE
   req.user = currentUser;
+  next();
+});
+
+
+exports.authenicateRestaurant = catchAsync(async (req, res, next) => {
+  // 1) Getting token and check of it's there
+  const token = req.cookies["token"];
+
+  if (!token) {
+    return next(
+      new AppError('You are not logged in! Please log in to get access.', 401)
+    );
+  }
+  // 2) Verification token
+  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+  // 3) Check if user still exists
+  const currentRestaurant = await Restaurant.findById(decoded.id);
+  if (!currentRestaurant) {
+    return next(
+      new AppError(
+        "The restaurant belonging to this token does no longer exist.",
+        401
+      )
+    );
+  }
+
+  // GRANT ACCESS TO PROTECTED ROUTE
+  req.restaurant = currentRestaurant;
   next();
 });

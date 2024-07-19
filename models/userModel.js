@@ -19,6 +19,11 @@ const userSchema = new mongoose.Schema(
       // unique: true,
     },
 
+    gender: {
+      type: String,
+      required: false,
+    },
+
     referralCode: {
       type: String,
     },

@@ -7,7 +7,7 @@ const orderSchema = new mongoose.Schema(
             ref: "User",
             required: true,
         },
-        
+
         restaurantId: {
             type: mongoose.Types.ObjectId,
             ref: "Restaurant",
@@ -30,15 +30,42 @@ const orderSchema = new mongoose.Schema(
 
         favorite: {
             type: Boolean,
+            default: false
         },
 
         status: {
-            type: Boolean,
+            type: String,
+            default:"confirmed",
+            enum: ["pending", "confirmed", "cancelled", "delivered"],
         },
 
         tip: {
             type: Number,
+            default: 0
         },
+
+        orderValue: {
+            type: Number,
+            default: 0
+        },
+
+        discount: {
+            type: Number,
+            default: 0
+        },
+
+        products: [
+            {
+                productId: {
+                    type: mongoose.Types.ObjectId,
+                    ref: "Product",
+                    required: true,
+                },
+                quantity: {
+                    type: Number
+                }
+            }
+        ],
 
         address: {
             lat: {

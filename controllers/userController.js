@@ -1,5 +1,9 @@
+const Cart = require("../models/cartModel");
+const Favorite = require("../models/favoriteModel");
 const Order = require("../models/orderModel");
+const Product = require("../models/productModel");
 const Restaurant = require("../models/restaurantModel");
+const Review = require("../models/reviewModel");
 const User = require("../models/userModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
@@ -171,7 +175,33 @@ exports.getUserProfile = catchAsync(async (req, res, next) => {
 
     res.status(200).json({
         success: true,
-        data: user,
+        user,
+    });
+});
+
+exports.updateUserProfile = catchAsync(async (req, res, next) => {
+    const userId = req?.user?._id;
+    const { name, gender } = req.body;
+    const image = req?.file;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+        return next(new AppError('User not found.', 404));
+    }
+
+    user.name = name;
+    user.gender = gender;
+    if (image?.path) {
+        user.image = image?.path;
+    }
+
+    await user.save();
+
+
+    res.status(200).json({
+        success: true,
+        message: "Profile updated successfully"
     });
 });
 
@@ -179,7 +209,7 @@ exports.getUserProfile = catchAsync(async (req, res, next) => {
 exports.getUserOrders = catchAsync(async (req, res, next) => {
     const userId = req?.user?._id;
 
-    const orders = await Order.find({ userId }); // Adjust fields to populate as necessary
+    const orders = await Order.find({ userId });
 
     if (!orders) {
         return next(new AppError('No orders found for this user.', 404));
@@ -187,6 +217,295 @@ exports.getUserOrders = catchAsync(async (req, res, next) => {
 
     res.status(200).json({
         success: true,
-        data: orders,
+        orders,
+    });
+});
+
+
+exports.getUserFav = catchAsync(async (req, res, next) => {
+    const userId = req?.user?._id;
+
+    const favorites = await Favorite.find({ userId });
+
+    if (!favorites) {
+        return next(new AppError('No favorites found for this user.', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        favorites,
+    });
+});
+
+
+exports.addToFav = catchAsync(async (req, res, next) => {
+    const userId = req?.user?._id;
+    const { restaurantId, productId } = req.body;
+
+    if (!restaurantId || !productId) {
+        return next(new AppError('All fields are required.', 400));
+    }
+
+    await Favorite.create({ userId, restaurantId, productId });
+
+    res.status(200).json({
+        success: true,
+        message: "Added to Favorite"
+    });
+});
+
+exports.removeFromFav = catchAsync(async (req, res, next) => {
+    const userId = req?.user?._id;
+    const { restaurantId, productId } = req.body;
+
+    await Favorite.findOneAndDelete({ userId, productId, restaurantId });
+
+    res.status(200).json({
+        success: true,
+        message: "Removed from Favorite"
+    });
+});
+
+
+exports.addReview = catchAsync(async (req, res, next) => {
+    const userId = req?.user?._id;
+    const { reviewToId, reviewToType, rating, title, description } = req.body;
+    let reviewTo = {};
+
+    switch (reviewToType) {
+        case "restaurant":
+            reviewTo.restaurantId = reviewToId;
+            break;
+
+        case "order":
+            reviewTo.orderId = reviewToId;
+            break;
+
+        case "deliveryExec":
+            reviewTo.deliveryExecId = reviewToId;
+            break;
+        case "product":
+            reviewTo.productId = reviewToId;
+            break;
+    }
+
+
+    if (!title || !rating || !description || !reviewTo) {
+        return next(new AppError('All fields are required.', 400));
+    }
+
+    await Review.create({
+        title,
+        description,
+        rating,
+        reviewBy: { type: "user", userId },
+        reviewTo
+    });
+
+    res.status(200).json({
+        success: true,
+        message: "Review added successfully"
+    });
+});
+
+
+exports.getUserReviews = catchAsync(async (req, res, next) => {
+    const userId = req?.user?._id;
+
+    const reviews = await Review.find({ reviewBy: { userId } });
+
+    if (!reviews) {
+        return next(new AppError('No reviews found for this user.', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        reviews,
+    });
+});
+
+
+exports.changeVegMode = catchAsync(async (req, res, next) => {
+    const userId = req?.user?._id;
+    const { vegMode, vegModeType } = req.body;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+        return next(new AppError('User not found.', 404));
+    }
+
+    user.vegMode = vegMode;
+    user.vegModeType = vegModeType;
+
+    await user.save();
+
+    res.status(200).json({
+        success: true,
+        message: "Veg mode changed successfully",
+    });
+});
+
+
+exports.getRestaurantByVegMode = catchAsync(async (req, res, next) => {
+    const userId = req.user._id;
+
+    const user = await User.findById(userId);
+
+    const vegMode = user.vegMode;
+    const vegModeType = user.vegModeType;
+    let restaurants;
+
+    if (vegMode) {
+        if (vegModeType === "allRestaurants") {
+            restaurants = await Restaurant.find({ restaurantType: "veg" });
+        }
+        else {
+            restaurants = await Product.find({ veg: true });
+        }
+    }
+    else {
+        restaurants = await Restaurant.find();
+    }
+
+    res.status(200).json({
+        success: true,
+        message: 'Restaurant by vegMode retrieved successfully',
+        data: restaurants
+    });
+});
+
+
+exports.addToCartOrIncreaseQty = catchAsync(async (req, res, next) => {
+    const userId = req.user._id;
+    const { productId, quantity } = req.body;
+
+    let cart = await Cart.findOne({ userId });
+
+    if (!cart) {
+        cart = await Cart.create({
+            userId,
+            products: [{ productId, quantity: quantity || 1 }]
+        });
+    } else {
+        const productIndex = cart.products.findIndex(p => p.productId.equals(productId));
+
+        if (productIndex > -1) {
+            cart.products[productIndex].quantity += quantity || 1;
+        } else {
+            cart.products.push({ productId, quantity: quantity || 1 });
+        }
+
+        await cart.save();
+    }
+
+    res.status(200).json({
+        success: true,
+        cart,
+    });
+});
+
+exports.removeFromCartOrDecreaseQty = catchAsync(async (req, res, next) => {
+    const userId = req.user._id;
+    const { productId } = req.body;
+
+    const cart = await Cart.findOne({ userId });
+
+    if (!cart) {
+        return next(new AppError('Cart not found.', 404));
+    }
+
+    const productIndex = cart.products.findIndex(p => p.productId.equals(productId));
+
+    if (productIndex === -1) {
+        return next(new AppError('Product not found in cart.', 404));
+    }
+
+    if (cart.products[productIndex].quantity === 1) {
+        cart.products = cart.products.filter(p => !p.productId.equals(productId));
+    } else {
+        cart.products[productIndex].quantity -= 1;
+    }
+
+    await cart.save();
+
+    res.status(200).json({
+        success: true,
+        cart,
+    });
+});
+
+// Remove all from cart
+exports.clearCart = catchAsync(async (req, res, next) => {
+    const userId = req.user._id;
+
+    const cart = await Cart.findOneAndDelete({ userId });
+
+    if (!cart) {
+        return next(new AppError('Cart not found.', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        message: 'Cart cleared.',
+    });
+});
+
+
+exports.getCartDetails = catchAsync(async (req, res, next) => {
+    const userId = req.user._id;
+
+    const cart = await Cart.findOne({ userId }).populate('products.productId');
+
+    if (!cart) {
+        return next(new AppError('No cart found for this user.', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        cart,
+    });
+});
+
+
+exports.placeOrder = catchAsync(async (req, res, next) => {
+    const userId = req.user._id;
+    const { restaurantId, deliveryTime, cookingInstructions, tip, orderValue, address,discount } = req.body;
+
+    // Find the user's cart
+    const cart = await Cart.findOne({ userId });
+
+    if (!cart) {
+        return next(new AppError('Cart not found.', 404));
+    }
+
+    if (cart.products.length === 0) {
+        return next(new AppError('No products in cart.', 400));
+    }
+
+    // Create a new order
+    const order = new Order({
+        userId,
+        restaurantId,
+        orderedTime: new Date(),
+        deliveryTime,
+        cookingInstructions,
+        orderValue,
+        discount,
+        tip,
+        address,
+        products: cart.products // Including products from the cart in the order
+    });
+
+    // Save the order
+    await order.save();
+
+    // Clear the user's cart
+    cart.products = [];
+    await cart.save();
+
+    res.status(201).json({
+        success: true,
+        order,
     });
 });
