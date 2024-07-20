@@ -80,7 +80,7 @@ exports.failureFacebookLogin = catchAsync(async (req, res, next) => {
 
 exports.getAddresses = catchAsync(async (req, res, next) => {
     const userId = req.user._id;
-    const user = await User.findById(userId); // Retrieve only the addresses field for all users
+    const user = await User.findById(userId);
 
     res.status(200).json({
         success: true,
@@ -470,7 +470,7 @@ exports.getCartDetails = catchAsync(async (req, res, next) => {
 
 exports.placeOrder = catchAsync(async (req, res, next) => {
     const userId = req.user._id;
-    const { restaurantId, deliveryTime, cookingInstructions, tip, orderValue, address,discount } = req.body;
+    const { restaurantId, deliveryTime, cookingInstructions, tip, orderValue, address, discount } = req.body;
 
     // Find the user's cart
     const cart = await Cart.findOne({ userId });
@@ -508,4 +508,105 @@ exports.placeOrder = catchAsync(async (req, res, next) => {
         success: true,
         order,
     });
+});
+
+
+exports.logout = catchAsync(async (req, res, next) => {
+    // req.logout(function (err) {
+    //     if (err) {
+    //         return next(err);
+    //     }
+
+    //     // Destroy the session
+    //     req.session.destroy(err => {
+    //         if (err) {
+    //             return res.status(500).send('Failed to logout');
+    //         }
+
+    //         // Clear cookies
+    //         res.clearCookie('connect.sid'); // For session cookies
+    //         res.clearCookie('token');   // For JWT or custom token cookies
+
+    //         // Optionally, you might want to add a redirect or response message
+    //         res.status(200).json({ message: 'Logout successful' });
+    //     });
+    // });
+    if (req.session) {
+        req.session.destroy(err => {
+            if (err) {
+                return next(err);
+            }
+
+            // Clear session cookie
+            res.clearCookie('connect.sid'); // Default session cookie name
+
+            // Handle token-based logout
+            // Clear JWT cookie (if applicable)
+            res.clearCookie('token'); // Replace 'authToken' with your token cookie name
+
+            // Send response
+            res.status(200).json({ message: 'Logout successful' });
+        });
+    } else {
+        // Handle token-based logout if no session exists
+        res.clearCookie('token');
+        res.status(200).json({ message: 'Logout successful' });
+    }
+});
+
+
+exports.searchRestaurantsAndDishes = catchAsync(async (req, res, next) => {
+    const { search } = req.query;
+
+    if (!search) {
+        return next(new AppError("Please provide a search term", 400));
+    }
+
+    try {
+        const restaurants = await Restaurant.aggregate([
+            {
+                $lookup: {
+                    from: "categories",
+                    localField: "categoryServes.categoryId",
+                    foreignField: "_id",
+                    as: "categories"
+                }
+            },
+            {
+                $match: {
+                    $or: [
+                        { name: { $regex: search, $options: "i" } },
+                        { "categories.name": { $regex: search, $options: "i" } }
+                    ]
+                }
+            },
+            {
+                $project: {
+                    name: 1,
+                    email: 1,
+                    phone: 1,
+                    restaurantType: 1,
+                    address: 1,
+                    categoryServes: 1,
+                    isSubscriptionActive: 1
+                }
+            }
+        ]);
+
+        const dishes = await Product.find({
+            $or: [
+                { name: { $regex: search, $options: "i" } },
+                { description: { $regex: search, $options: "i" } }
+            ]
+        }).populate('restaurantId', 'name');
+
+        res.status(200).json({
+            success: true,
+            restaurants,
+            dishes,
+            message: "Restaurants and dishes retrieved successfully",
+        });
+    } catch (error) {
+        return next(new AppError("Failed to retrieve data", 500));
+    }
 });

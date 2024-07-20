@@ -7,6 +7,7 @@ const AppError = require('./../utils/appError');
 const User = require('../models/userModel');
 const { verifyOtpSms, verifyOtpEmail } = require('../utils/sendSMS');
 const Restaurant = require('../models/restaurantModel');
+const DeliveryExec = require('../models/deliveryExecModel');
 
 const signToken = id => {
   return jwt.sign({ id }, process.env.JWT_SECRET);
@@ -90,8 +91,33 @@ exports.restaurantLogin = catchAsync(async (req, res, next) => {
     return next(new AppError('Incorrect email or password', 401));
   }
 
+  // Remove password from output
+  restaurant.password = undefined;
+
   // 3. If everything is okay, send token to client
   createSendToken(restaurant, 200, res);
+});
+
+
+exports.deliveryExecLogin = catchAsync(async (req, res, next) => {
+  const { email, password } = req.body;
+
+  // Check if email and password are provided
+  if (!email || !password) {
+    return next(new AppError('Please provide email and password.', 400));
+  }
+
+  // Find the delivery executive by email and select the password
+  const deliveryExec = await DeliveryExec.findOne({ email }).select('+password');
+
+  if (!deliveryExec || !(await bcrypt.compare(password, deliveryExec.password))) {
+    return next(new AppError('Incorrect email or password.', 401));
+  }
+
+  // Remove password from output
+  deliveryExec.password = undefined;
+
+  createSendToken(deliveryExec, 200, res);
 });
 
 
@@ -147,5 +173,33 @@ exports.authenicateRestaurant = catchAsync(async (req, res, next) => {
 
   // GRANT ACCESS TO PROTECTED ROUTE
   req.restaurant = currentRestaurant;
+  next();
+});
+
+
+exports.authenicateDeliveryExec = catchAsync(async (req, res, next) => {
+  // 1) Getting token and check of it's there
+  const token = req.cookies["token"];
+
+  if (!token) {
+    return next(
+      new AppError('You are not logged in! Please log in to get access.', 401)
+    );
+  }
+  // 2) Verification token
+  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+  // 3) Check if user still exists
+  const currentDeliveryExec = await DeliveryExec.findById(decoded.id);
+  if (!currentDeliveryExec) {
+    return next(
+      new AppError(
+        "The deliveryExec belonging to this token does no longer exist.",
+        401
+      )
+    );
+  }
+
+  // GRANT ACCESS TO PROTECTED ROUTE
+  req.deliveryExec = currentDeliveryExec;
   next();
 });

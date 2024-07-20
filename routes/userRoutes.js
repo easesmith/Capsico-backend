@@ -57,7 +57,9 @@ router.get('/failureFacebookLogin', userController.failureFacebookLogin);
 // autheniation
 router.use(authController.authenicateUser);
 
-// Addresses routes
+router.get("/logout", userController.logout); // 20/07/24
+
+// Address routes
 router.get("/get-all-addresses", userController.getAddresses);
 router.post("/add-address", userController.addAddress);
 router.delete('/remove-address', validate.validateFields, userController.removeAddress);
@@ -91,6 +93,7 @@ router.get('/get-cart-details', userController.getCartDetails); // 19/07/24
 
 // Order routes
 router.post('/place-order', userController.placeOrder); // 19/07/24
+router.post('/search-restaurantsAndDishes', userController.searchRestaurantsAndDishes); // 20/07/24
 
 
 module.exports = router;

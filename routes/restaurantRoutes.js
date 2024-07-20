@@ -8,17 +8,19 @@ const router = express.Router();
 
 
 router.post('/login', authController.restaurantLogin); // 19/07/24
+router.post('/add-restaurant', upload.array("images", 3), restaurantController.addRestaurant); // 19/07/24
 
 // autheniation
 router.use(authController.authenicateRestaurant);
 
+router.get("/logout", restaurantController.logout); // 20/07/24
+
 // Restaurant routes
-router.post('/add-restaurant', upload.array("images", 3), restaurantController.addRestaurant); // 19/07/24
 router.patch('/update-restaurant/:id', upload.array("images", 3), restaurantController.updateRestaurant); // 19/07/24
 router.delete('/delete-restaurant/:id', restaurantController.deleteRestaurant); // 18/07/24
 router.get('/get-restaurants', restaurantController.getRestaurants);
 router.get('/get-restaurant-details/:id', restaurantController.getRestaurantDetails); // 19/07/24
-router.get('/search-restaurant', restaurantController.searchRestaurants);
+// router.get('/search-restaurant', restaurantController.searchRestaurants);
 router.get('/get-restaurantBy-category', restaurantController.getRestaurantByCategory);
 
 // Category routes
