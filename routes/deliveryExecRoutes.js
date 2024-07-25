@@ -9,7 +9,7 @@ router.post("/login", authController.deliveryExecLogin); // 20/07/24
 
 
 // autheniation
-router.use(authController.authenicateDeliveryExec);
+// router.use(authController.authenicateDeliveryExec);
 
 
 router.get("/logout", deliveryExecController.logout); // 20/07/24

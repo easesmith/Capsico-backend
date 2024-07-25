@@ -1,4 +1,6 @@
+const DeliveryExec = require("../models/deliveryExecModel");
 const catchAsync = require("../utils/catchAsync");
+const bcrypt = require("bcryptjs");
 
 exports.deliveryExecSignup = catchAsync(async (req, res, next) => {
     const { email, password, phone, type, address, location } = req.body;
@@ -22,25 +24,18 @@ exports.deliveryExecSignup = catchAsync(async (req, res, next) => {
         location
     });
 
-    // Generate a JWT token
-    const token = jwt.sign({ id: newExec._id }, process.env.JWT_SECRET, {
-        expiresIn: process.env.JWT_EXPIRES_IN
-    });
-
     // Remove password from output
     newExec.password = undefined;
 
     res.status(201).json({
         success: true,
-        token,
-        data: {
-            deliveryExec: newExec
-        }
+        deliveryExec: newExec
     });
 });
 
 exports.logout = catchAsync(async (req, res, next) => {
-    res.cookie("token", "", { expires: new Date(0) });
+    res.clearCookie("token");
+    res.clearCookie("connect.sid");
 
     res.status(200).json({
         success: true,

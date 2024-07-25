@@ -93,7 +93,10 @@ router.get('/get-cart-details', userController.getCartDetails); // 19/07/24
 
 // Order routes
 router.post('/place-order', userController.placeOrder); // 19/07/24
-router.post('/search-restaurantsAndDishes', userController.searchRestaurantsAndDishes); // 20/07/24
+
+router.get('/search-restaurantsAndDishes', userController.searchRestaurantsAndDishes); // 20/07/24
+
+router.get('/filter-sort-restaurants', userController.filterAndSortRestaurants); // 25/07/24
 
 
 module.exports = router;

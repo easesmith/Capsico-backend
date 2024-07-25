@@ -7,6 +7,7 @@ const Review = require("../models/reviewModel");
 const User = require("../models/userModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
+const { calculateDistance, calculateDeliveryTime } = require("../utils/distance");
 const { sendOtpSms, sendOtpEmail } = require("../utils/sendSMS");
 
 exports.getOTP = catchAsync(async (req, res, next) => {
@@ -550,7 +551,11 @@ exports.logout = catchAsync(async (req, res, next) => {
     } else {
         // Handle token-based logout if no session exists
         res.clearCookie('token');
-        res.status(200).json({ message: 'Logout successful' });
+        res.clearCookie('connect.sid'); // Default session cookie name
+        res.status(200).json({
+            success: true,
+            message: "Logout successfully!",
+        });
     }
 });
 
@@ -609,4 +614,212 @@ exports.searchRestaurantsAndDishes = catchAsync(async (req, res, next) => {
     } catch (error) {
         return next(new AppError("Failed to retrieve data", 500));
     }
+});
+
+
+// exports.filterAndSortRestaurants = catchAsync(async (req, res, next) => {
+//     const { rating, vegMode, sortBy, lat, lng } = req.query;
+
+//     let restaurantMatch = {};
+//     let sortCriteria = {};
+
+//     // Filter Restaurants by veg mode
+//     if (vegMode === 'pureVeg') {
+//         restaurantMatch.restaurantType = 'veg';
+//     }
+
+//     // Determine sort criteria
+//     switch (sortBy) {
+//         case 'rating':
+//             sortCriteria.averageRating = -1; // High to Low
+//             break;
+//         case 'deliveryTime':
+//             sortCriteria.deliveryTime = 1; // Low to High
+//             break;
+//         case 'costLowToHigh':
+//             sortCriteria.cost = 1; // Low to High
+//             break;
+//         case 'costHighToLow':
+//             sortCriteria.cost = -1; // High to Low
+//             break;
+//         case 'distance':
+//             // Ensure we sort by distance if coordinates are provided
+//             if (lat && lng) {
+//                 sortCriteria = { distance: 1 }; // Low to High distance
+//             }
+//             break;
+//         default:
+//             break;
+//     }
+
+//     // Aggregate restaurants with their average ratings and distance if applicable
+//     const restaurants = await Restaurant.aggregate([
+//         {
+//             $match: restaurantMatch
+//         },
+//         {
+//             $lookup: {
+//                 from: 'reviews',
+//                 localField: '_id',
+//                 foreignField: 'reviewTo.restaurantId',
+//                 as: 'reviews'
+//             }
+//         },
+//         {
+//             $addFields: {
+//                 averageRating: { $avg: '$reviews.rating' }
+//             }
+//         },
+//         {
+//             $project: {
+//                 name: 1,
+//                 address: 1,
+//                 averageRating: 1,
+//                 deliveryTime: 1,
+//                 cost: 1,
+//                 distance: {
+//                     $let: {
+//                         vars: {
+//                             coords: {
+//                                 lat: parseFloat(lat),
+//                                 lng: parseFloat(lng)
+//                             }
+//                         },
+//                         in: {
+//                             $geoNear: {
+//                                 $geometry: {
+//                                     type: "Point",
+//                                     coordinates: ["$$coords.lng", "$$coords.lat"]
+//                                 },
+//                                 $maxDistance: 1000000, // Use a large enough distance to include all
+//                                 distanceField: "distance",
+//                                 spherical: true
+//                             }
+//                         }
+//                     }
+//                 }
+//             }
+//         },
+//         {
+//             $match: rating ? { averageRating: { $gte: parseFloat(rating) } } : {}
+//         },
+//         {
+//             $sort: sortCriteria
+//         }
+//     ]);
+
+//     if (!restaurants.length) {
+//         return next(new AppError('No restaurants found matching the criteria.', 404));
+//     }
+
+//     res.status(200).json({
+//         success: true,
+//         restaurants,
+//     });
+// });
+
+
+exports.filterAndSortRestaurants = catchAsync(async (req, res, next) => {
+    const { rating, vegMode, sortBy, lat, lng, maxDistance } = req.query;
+
+    // Build the match stage for filtering
+    const matchStage = {};
+    let pipeline = [];
+
+    if (rating) {
+        // matchStage.rating = { $gte: parseInt(3) };
+        pipeline.push(
+            {
+                $lookup: {
+                    from: 'reviews', // Collection name
+                    localField: '_id',
+                    foreignField: 'reviewTo.restaurantId',
+                    as: 'reviews'
+                }
+            },
+            {
+                $addFields: {
+                    averageRating: { $avg: '$reviews.rating' }
+                }
+            },
+            {
+                $match: { averageRating: { $gte: parseFloat(rating) } }
+            }
+        );
+    }
+
+
+    if (vegMode === 'pureVeg') {
+        matchStage.restaurantType = 'veg';
+    }
+
+    console.log("matchstage", matchStage);
+
+    // Create aggregation pipeline
+
+    // Geospatial Query Stage
+    if (lat && lng && sortBy === "distance") {
+        pipeline.push({
+            $geoNear: {
+                near: { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] },
+                distanceField: 'distance',
+                maxDistance: parseInt(maxDistance || 1) * 1000, // Convert km to meters
+                spherical: true
+            }
+        });
+    }
+
+    // Match Stage
+    if (Object.keys(matchStage).length) {
+        pipeline.push({ $match: matchStage });
+    }
+
+    // Sort Stage
+    let sortStage = {};
+    switch (sortBy) {
+        case 'rating':
+            sortStage.rating = -1; // High to Low
+            break;
+        // case 'costLowToHigh':
+        //     sortStage.cost = 1; // Low to High
+        //     break;
+        // case 'costHighToLow':
+        //     sortStage.cost = -1; // High to Low
+        //     break;
+        case 'distance':
+            sortStage.distance = 1; // Low to High distance
+            break;
+        default:
+            break;
+    }
+    if (Object.keys(sortStage).length) {
+        pipeline.push({ $sort: sortStage });
+    }
+
+    console.log("pipeline", pipeline);
+    // Execute Aggregation
+    let restaurants = await Restaurant.aggregate(pipeline);
+
+    console.log("restaurants", restaurants);
+    // Calculate delivery time based on distance
+    restaurants = restaurants.map(restaurant => {
+        const distance = calculateDistance(lat, lng, restaurant.address.coordinates[1], restaurant.address.coordinates[0]);
+        restaurant.deliveryTime = calculateDeliveryTime(distance);
+        return restaurant;
+    });
+
+    // Sort by delivery time if requested
+    if (sortBy === 'deliveryTime') {
+        restaurants.sort((a, b) => a.deliveryTime - b.deliveryTime);
+    }
+
+    if (!restaurants.length) {
+        return next(new AppError('No restaurants found matching the criteria.', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        restaurants,
+        length: restaurants.length
+    });
 });

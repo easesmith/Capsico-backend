@@ -7,8 +7,8 @@ const upload = require('../middlewares/imgUpload');
 const router = express.Router();
 
 
-router.post('/login', authController.restaurantLogin); // 19/07/24
 router.post('/add-restaurant', upload.array("images", 3), restaurantController.addRestaurant); // 19/07/24
+router.post('/login', authController.restaurantLogin); // 19/07/24
 
 // autheniation
 router.use(authController.authenicateRestaurant);
