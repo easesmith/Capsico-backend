@@ -6,6 +6,60 @@ const Coupon = require("../models/couponModel");
 const User = require("../models/userModel");
 const Product = require("../models/productModel");
 const AppError = require("../utils/appError");
+const bcrypt = require("bcryptjs");
+const Review = require("../models/reviewModel");
+
+
+exports.addRestaurant = catchAsync(async (req, res, next) => {
+    const { name, email, password, phone, restaurantType, lat, lng, addressLine, city, state, pinCode, categoryServes, isSubscriptionActive } = req.body;
+    const images = req.files;
+    const paths = images.map((image) => image.path);
+
+    if (!name || !email || !password || !phone || !restaurantType || !addressLine || !city || !state || !pinCode || !lat || !lng) {
+        return next(new AppError('All fields are required.', 400));
+    }
+
+    if (categoryServes && categoryServes.length > 0) {
+        for (let category of categoryServes) {
+            if (!mongoose.Types.ObjectId.isValid(category.categoryId)) {
+                return next(new AppError('Invalid category ID.', 400));
+            }
+            const categoryExists = await Category.findById(category.categoryId);
+            if (!categoryExists) {
+                return next(new AppError(`Category with ID ${category.categoryId} not found.`, 404));
+            }
+        }
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const newRestaurant = new Restaurant({
+        name,
+        phone,
+        email,
+        images: paths,
+        password: passwordHash,
+        address: {
+            type: 'Point',
+            coordinates: [lng, lat],
+            addressLine,
+            city,
+            state,
+            pinCode
+        },
+        restaurantType,
+        categoryServes,
+        isSubscriptionActive
+    });
+
+    await newRestaurant.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Restaurant added successfully',
+    });
+})
+
 
 exports.getRestaurants = catchAsync(async (req, res, next) => {
     const restaurants = await Restaurant.find({});
@@ -102,6 +156,12 @@ exports.getRestaurantByCategory = catchAsync(async (req, res, next) => {
 exports.updateRestaurant = catchAsync(async (req, res, next) => {
     const { id } = req.params;
     const { name, email, phone, restaurantType, lat, lng, addressLine, city, state, pinCode, categoryServes, isSubscriptionActive } = req.body;
+    const images = req.files;
+    let paths;
+
+    if (images && images.length > 0) {
+        paths = images.map((image) => image.path);
+    }
 
     // Validate required fields
     if (!name || !email || !phone || !restaurantType || !addressLine || !city || !state || !pinCode || !lat || !lng) {
@@ -127,6 +187,10 @@ exports.updateRestaurant = catchAsync(async (req, res, next) => {
     }
 
     // Update restaurant details
+    if (paths) {
+        restaurant.images = paths;
+    }
+
     restaurant.name = name;
     restaurant.email = email;
     restaurant.phone = phone;
@@ -315,7 +379,6 @@ exports.updateProduct = catchAsync(async (req, res, next) => {
     // Use findByIdAndUpdate with the constructed update object
     const updatedProduct = await Product.findByIdAndUpdate(id, updateData, {
         new: true,
-        runValidators: true,
     });
 
     if (!updatedProduct) {
@@ -365,30 +428,101 @@ exports.getProductsByRestaurantId = catchAsync(async (req, res, next) => {
     });
 });
 
-exports.getRestaurantByVegMode = catchAsync(async (req, res, next) => {
-    const userId = req.user._id;
-    let { vegMode, vegModeType } = req.body; // vegModeType = "allRestaurants" or "allDishes"
-    let restaurants;
 
-    if (vegMode) {
-        if (vegModeType === "allRestaurants") {
-            restaurants = await Restaurant.find({ restaurantType: "veg" });
-        }
-        else {
-            restaurants = await Product.find({ veg: true });
-        }
+exports.getRestaurantReviews = catchAsync(async (req, res, next) => {
+    const restaurantId = req?.restaurant?._id;
+
+    const reviews = await Review.find({ 'reviewTo.restaurantId': restaurantId });
+
+    if (!reviews) {
+        return next(new AppError('No reviews found for this restaurant.', 404));
     }
-    else {
-        restaurants = await Restaurant.find();
-    }
-    const user = await User.findById(userId);
-    user.vegMode = vegMode;
-    user.vegModeType = vegModeType;
-    await user.save();
 
     res.status(200).json({
         success: true,
-        message: 'Restaurant by vegMode retrieved successfully',
-        restaurants
+        reviews,
+    });
+});
+
+exports.getProductReviews = catchAsync(async (req, res, next) => {
+    const { productId } = req.params;
+    console.log("productId", productId);
+
+    const reviews = await Review.find({ 'reviewTo.productId': productId });
+
+    if (!reviews.length) {
+        return next(new AppError('No reviews found for this product.', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        reviews,
+    });
+});
+
+
+
+exports.addReview = catchAsync(async (req, res, next) => {
+    const restaurantId = req?.restaurant?._id;
+    const { deliveryExecId, rating, title, description } = req.body;
+
+
+    if (!title || !rating || !description || !deliveryExecId) {
+        return next(new AppError('All fields are required.', 400));
+    }
+
+    await Review.create({
+        title,
+        description,
+        rating,
+        reviewBy: { restaurantId },
+        reviewTo: { deliveryExecId }
+    });
+
+    res.status(200).json({
+        success: true,
+        message: "Review added successfully"
+    });
+});
+
+exports.getRestaurantDetails = catchAsync(async (req, res, next) => {
+    const { id } = req.params;
+
+    const restaurant = await Restaurant.findById(id);
+
+    if (!restaurant) {
+        return next(new AppError('No restaurant found with that ID', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        restaurant,
+    });
+});
+
+
+exports.getProductDetails = catchAsync(async (req, res, next) => {
+    const { id } = req.params;
+
+    const product = await Product.findById(id);
+
+    if (!product) {
+        return next(new AppError('No product found with that ID', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        product,
+    });
+});
+
+
+exports.logout = catchAsync(async (req, res, next) => {
+    res.clearCookie("token");
+    res.clearCookie("connect.sid");
+
+    res.status(200).json({
+        success: true,
+        message: "Logout successfully!",
     });
 });

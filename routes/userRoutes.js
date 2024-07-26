@@ -11,6 +11,7 @@ router.use(passport.session());
 
 const userController = require("../controllers/userController");
 const authController = require("../controllers/authController");
+const upload = require("../middlewares/imgUpload");
 
 
 router.get("/get-otp", userController.getOTP);
@@ -52,16 +53,50 @@ router.get('/facebook/callback',
 router.get('/successFacebookLogin', userController.successFacebookLogin);
 router.get('/failureFacebookLogin', userController.failureFacebookLogin);
 
-// Addresses routes
-router.get("/get-all-addresses", authController.authenicateUser, userController.getAddresses);
-router.post("/add-address", authController.authenicateUser, userController.addAddress);
-router.delete('/remove-address', authController.authenicateUser, validate.validateFields, userController.removeAddress);
 
-router.get('/get-restaurantNearUser', authController.authenicateUser, userController.getRestaurantsNearUser); // 18/07/24
+// autheniation
+router.use(authController.authenicateUser);
 
-router.get('/get-user-profile', authController.authenicateUser, userController.getUserProfile); // 18/07/24
+router.get("/logout", userController.logout); // 20/07/24
 
-router.get('/get-user-orders', authController.authenicateUser, userController.getUserOrders); // 18/07/24
+// Address routes
+router.get("/get-all-addresses", userController.getAddresses);
+router.post("/add-address", userController.addAddress);
+router.delete('/remove-address', validate.validateFields, userController.removeAddress);
+
+router.get('/get-restaurantNearUser', userController.getRestaurantsNearUser); // 18/07/24
+
+// Profile routes
+router.get('/get-user-profile', userController.getUserProfile); // 18/07/24
+router.patch('/update-user-profile',upload.single("image"), userController.updateUserProfile); // 19/07/24
+
+router.get('/get-user-orders', userController.getUserOrders); // 18/07/24
+
+// Fav routes
+router.post('/add-to-fav', userController.addToFav); // 19/07/24
+router.post('/remove-from-fav', userController.removeFromFav); // 19/07/24
+router.get('/get-user-favs', userController.getUserFav); // 19/07/24
+
+// Review routes
+router.post('/add-review', userController.addReview); // 19/07/24
+router.get('/get-user-reviews', userController.getUserReviews); // 19/07/24
+
+// Veg mode routes
+router.post('/change-vegMode', userController.changeVegMode); // 19/07/24
+router.get("/get-restaurantBy-vegMode", userController.getRestaurantByVegMode); // 19/07/24
+
+// Cart routes
+router.post('/add-to-cart', userController.addToCartOrIncreaseQty); // 19/07/24
+router.post('/remove-from-cart', userController.removeFromCartOrDecreaseQty); // 19/07/24
+router.get('/clear-cart', userController.clearCart); // 19/07/24
+router.get('/get-cart-details', userController.getCartDetails); // 19/07/24
+
+// Order routes
+router.post('/place-order', userController.placeOrder); // 19/07/24
+
+router.get('/search-restaurantsAndDishes', userController.searchRestaurantsAndDishes); // 20/07/24
+
+router.get('/filter-sort-restaurants', userController.filterAndSortRestaurants); // 25/07/24
 
 
 module.exports = router;

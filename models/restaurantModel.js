@@ -11,6 +11,12 @@ const restaurantSchema = new mongoose.Schema(
             required: true,
             unique: true,
         },
+        images: [
+            {
+                type: String,
+                required: false,
+            }
+        ],
         password: {
             type: String,
             required: [true, "Please provide a password"],
