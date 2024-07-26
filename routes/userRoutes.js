@@ -55,7 +55,7 @@ router.get('/failureFacebookLogin', userController.failureFacebookLogin);
 
 
 // autheniation
-router.use(authController.authenicateUser);
+// router.use(authController.authenicateUser);
 
 router.get("/logout", userController.logout); // 20/07/24
 

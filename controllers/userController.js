@@ -720,7 +720,7 @@ exports.searchRestaurantsAndDishes = catchAsync(async (req, res, next) => {
 
 
 exports.filterAndSortRestaurants = catchAsync(async (req, res, next) => {
-    const { rating, vegMode, sortBy, lat, lng, maxDistance } = req.query;
+    const { rating, vegMode, sortBy, lat, lng, maxDistance=2000 } = req.query;
 
     // Build the match stage for filtering
     const matchStage = {};
@@ -758,12 +758,12 @@ exports.filterAndSortRestaurants = catchAsync(async (req, res, next) => {
     // Create aggregation pipeline
 
     // Geospatial Query Stage
-    if (lat && lng && sortBy === "distance") {
+    if (lat && lng & maxDistance) {
         pipeline.push({
             $geoNear: {
                 near: { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] },
                 distanceField: 'distance',
-                maxDistance: parseInt(maxDistance || 1) * 1000, // Convert km to meters
+                maxDistance: parseInt(maxDistance), // Convert km to meters
                 spherical: true
             }
         });
