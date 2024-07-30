@@ -8,6 +8,7 @@ const Product = require("../models/productModel");
 const AppError = require("../utils/appError");
 const bcrypt = require("bcryptjs");
 const Review = require("../models/reviewModel");
+const Order = require("../models/orderModel");
 
 
 exports.addRestaurant = catchAsync(async (req, res, next) => {
@@ -524,5 +525,23 @@ exports.logout = catchAsync(async (req, res, next) => {
     res.status(200).json({
         success: true,
         message: "Logout successfully!",
+    });
+});
+
+
+exports.acceptOrder = catchAsync(async (req, res, next) => {
+    const { orderId } = req.params;
+    const order = await Order.findById(orderId);
+
+    if (!order) {
+        return next(new AppError('Order not found', 404));
+    }
+
+    order.status = "preparing";
+    await order.save();
+
+    res.status(200).json({
+        success: true,
+        message: "Order accepted successfully!",
     });
 });

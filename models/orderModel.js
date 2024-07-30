@@ -35,8 +35,8 @@ const orderSchema = new mongoose.Schema(
 
         status: {
             type: String,
-            default:"confirmed",
-            enum: ["pending", "confirmed", "cancelled", "delivered"],
+            default: "confirmed",
+            enum: ["pending", "confirmed", "preparing", "cancelled", "delivered"],
         },
 
         tip: {
@@ -91,6 +91,14 @@ const orderSchema = new mongoose.Schema(
             addressLine: {
                 type: String,
             },
+        },
+        cancelledBy: {
+            type: String,
+            enum: ["restaurant", "deliveryExec", "user"],
+        },
+
+        cancellationReason: {
+            type: String,
         },
     },
     {
