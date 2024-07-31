@@ -46,7 +46,10 @@ router.post('/add-review', restaurantController.addReview); //* 19/07/24 check t
 router.get('/get-restaurant-reviews', restaurantController.getRestaurantReviews); // 19/07/24
 router.get('/get-product-reviews/:productId', restaurantController.getProductReviews); // 19/07/24
 
+// Order routes
 router.get('/accept-order', restaurantController.acceptOrder); // 30/07/24
+router.get('/get-orders', restaurantController.getOrders); // 31/07/24
+router.post('/cancel-order/:orderId', restaurantController.cancelOrder); // 31/07/24
 
 
 module.exports = router;

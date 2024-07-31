@@ -18,5 +18,7 @@ router.get("/assign-order", deliveryExecController.assignOrderToDeliveryExec); /
 router.get("/get-assigned-order", deliveryExecController.getassignedOrderOfDeliveryExec) // 30/07/24
 router.get("/accept-order", deliveryExecController.acceptOrder) // 30/07/24
 router.post("/cancel-order", deliveryExecController.cancelOrder) // 30/07/24
+router.get("/complete-order", deliveryExecController.completeOrder) // 31/07/24
+router.post("/update-order-location/:orderId", deliveryExecController.updateOrderLocation) // 31/07/24
 
 module.exports = router;

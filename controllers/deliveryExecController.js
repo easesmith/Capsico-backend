@@ -147,6 +147,10 @@ exports.cancelOrder = catchAsync(async (req, res, next) => {
     const { assignedOrderId } = req.query;
     const { cancellationReason } = req.body;
 
+    if (!assignedOrderId || !cancellationReason) {
+        return next(new AppError('AssignedOrderId and cancellationReason are required.', 400));
+    }
+
     const assignedOrder = await AssignedOrders.findByIdAndUpdate(
         assignedOrderId,
         {
@@ -164,5 +168,65 @@ exports.cancelOrder = catchAsync(async (req, res, next) => {
     res.status(200).json({
         success: true,
         message: "Order cancelled successfully!",
+    });
+});
+
+
+exports.completeOrder = catchAsync(async (req, res, next) => {
+    const { assignedOrderId } = req.query;
+
+    if (!assignedOrderId) {
+        return next(new AppError('AssignedOrderId is required.', 400));
+    }
+
+    const assignedOrder = await AssignedOrders.findOneAndUpdate(
+        { _id: assignedOrderId },
+        { status: "delivered" },
+        { new: true }
+    );
+
+    if (!assignedOrder) {
+        throw new Error("Assigned order not found or already completed/cancelled");
+    }
+
+    // Update the order status to 'delivered'
+    const order = await Order.findByIdAndUpdate(
+        assignedOrder.orderId,
+        { status: "delivered" },
+        { new: true }
+    );
+
+    if (!order) {
+        return next(new AppError('Order not found or already completed/cancelled', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        message: "Order completed successfully!",
+    });
+});
+
+
+exports.updateOrderLocation = catchAsync(async (req, res, next) => {
+    const { orderId } = req.params;
+    const { lat, lng } = req.body;
+
+    if (!orderId || lat === undefined || lng === undefined) {
+        return next(new AppError('OrderId, latitude, and longitude are required.', 400));
+    }
+
+    const order = await Order.findById(orderId);
+
+    if (!order) {
+        return next(new AppError('No order found with this id.', 404));
+    }
+
+    order.address.lat = lat;
+    order.address.lng = lng;
+    await order.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Order location updated successfully!',
     });
 });
