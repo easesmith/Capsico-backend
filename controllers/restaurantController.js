@@ -8,6 +8,8 @@ const Product = require("../models/productModel");
 const AppError = require("../utils/appError");
 const bcrypt = require("bcryptjs");
 const Review = require("../models/reviewModel");
+const Order = require("../models/orderModel");
+const AssignedOrders = require("../models/assignedOrdersModel");
 
 
 exports.addRestaurant = catchAsync(async (req, res, next) => {
@@ -232,17 +234,35 @@ exports.deleteRestaurant = catchAsync(async (req, res, next) => {
 });
 
 exports.addCoupon = catchAsync(async (req, res, next) => {
-    const { name, code, expiry, type } = req.body;
+    const { name, code, expiry, type, percentage, amount, maxLimit } = req.body;
 
     if (!name || !code || !expiry || !type) {
         return next(new AppError('All fields are required.', 400));
+    }
+
+    if (percentage !== undefined) {
+        if (percentage < 0 || percentage > 100) {
+            return next(new AppError('Percentage must be between 0 and 100.', 400));
+        }
+        if (maxLimit === undefined) {
+            return next(new AppError('Max limit is required if percentage is provided.', 400));
+        }
+    } else if (amount !== undefined) {
+        if (amount < 0) {
+            return next(new AppError('Amount must be greater than or equal to 0.', 400));
+        }
+    } else {
+        return next(new AppError('Either percentage or amount is required.', 400));
     }
 
     const newCoupon = await Coupon.create({
         name,
         code: code.toUpperCase(),
         expiry,
-        type
+        type,
+        percentage,
+        amount,
+        maxLimit
     });
 
     res.status(201).json({
@@ -255,11 +275,21 @@ exports.addCoupon = catchAsync(async (req, res, next) => {
 
 exports.updateCoupon = catchAsync(async (req, res, next) => {
     const { id } = req.params;
-    const { name, code, expiry, type } = req.body;
+    const { name, code, expiry, type, percentage, amount, maxLimit } = req.body;
 
-    // Validate the type if it's present in the request
-    if (type && !["cart", "freebies", "free delivery"].includes(type)) {
-        return next(new AppError('Invalid coupon type.', 400));
+    if (percentage !== undefined) {
+        if (percentage < 0 || percentage > 100) {
+            return next(new AppError('Percentage must be between 0 and 100.', 400));
+        }
+        if (maxLimit === undefined) {
+            return next(new AppError('Max limit is required if percentage is provided.', 400));
+        }
+    } else if (amount !== undefined) {
+        if (amount < 0) {
+            return next(new AppError('Amount must be greater than or equal to 0.', 400));
+        }
+    } else {
+        return next(new AppError('Either percentage or amount is required.', 400));
     }
 
     const updatedCoupon = await Coupon.findByIdAndUpdate(
@@ -268,9 +298,12 @@ exports.updateCoupon = catchAsync(async (req, res, next) => {
             name,
             code: code.toUpperCase(),
             expiry,
-            type
+            type,
+            percentage,
+            amount,
+            maxLimit
         },
-        { new: true, runValidators: true }
+        { new: true }
     );
 
     if (!updatedCoupon) {
@@ -526,3 +559,85 @@ exports.logout = catchAsync(async (req, res, next) => {
         message: "Logout successfully!",
     });
 });
+
+
+exports.acceptOrder = catchAsync(async (req, res, next) => {
+    const { orderId } = req.params;
+    const order = await Order.findById(orderId);
+
+    if (!order) {
+        return next(new AppError('Order not found', 404));
+    }
+
+    order.status = "preparing";
+    await order.save();
+
+    res.status(200).json({
+        success: true,
+        message: "Order accepted successfully!",
+    });
+});
+
+
+exports.getOrders = catchAsync(async (req, res, next) => {
+    const restaurantId = req?.restaurant?._id;
+
+    if (!restaurantId) {
+        return next(new AppError('Restaurant ID not found', 400));
+    }
+
+    const orders = await Order.find({ restaurantId, status: "confirmed" });
+
+    if (!orders) {
+        return next(new AppError('No orders found for this restaurant', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        orders,
+    });
+});
+
+
+exports.cancelOrder = catchAsync(async (req, res, next) => {
+    const { orderId } = req.params;
+    const { cancellationReason } = req.body;
+
+    if (!orderId || !cancellationReason) {
+        return next(new AppError('OrderId and cancellationReason are required.', 400));
+    }
+
+    const order = await Order.findByIdAndUpdate(
+        orderId,
+        {
+            status: "cancelled",
+            cancellationReason,
+            cancelledBy: "restaurant"
+        },
+        { new: true }
+    );
+
+    if (!order) {
+        return next(new AppError('Order not found or already completed/cancelled', 404));
+    }
+
+    const assignedOrder = await AssignedOrders.findOneAndUpdate(
+        { orderId: order._id },
+        {
+            status: "cancelled",
+            cancellationReason,
+            cancelledBy: "restaurant"
+        },
+        { new: true }
+    );
+
+    if (!assignedOrder) {
+        return next(new AppError('Assigned order not found or already completed/cancelled', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        message: "Order cancelled successfully!",
+    });
+});
+

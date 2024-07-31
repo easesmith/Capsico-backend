@@ -46,21 +46,24 @@ const deliveryExecSchema = new mongoose.Schema(
         },
 
         location: {
-            lat: {
-                type: Number,
-                required: false,
+            type: {
+                type: String,
+                enum: ['Point'],
+                default: "Point"
             },
-            lng: {
-                type: Number,
-                required: false,
+            coordinates: {
+                type: [Number],
+                required: true
             },
-        }
+        },
     },
     {
         timestamps: true,
     }
 );
 
+
+deliveryExecSchema.index({ location: '2dsphere' });
 
 const DeliveryExec = mongoose.model("DeliveryExec", deliveryExecSchema);
 module.exports = DeliveryExec;

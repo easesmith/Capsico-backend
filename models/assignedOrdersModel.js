@@ -26,30 +26,17 @@ const assignedOrdersSchema = new mongoose.Schema(
             required: true,
         },
 
-        address: {
-            lat: {
-                type: Number,
-                required: false,
-            },
-            lng: {
-                type: Number,
-                required: false,
-            },
-            state: {
-                type: String,
-                required: false,
-            },
-            city: {
-                type: String,
-                required: false,
-            },
-            pinCode: {
-                type: String,
-                required: false,
-            },
-            addressLine: {
-                type: String,
-            },
+        status: {
+            type: String,
+            enum: ["assigned", "accepted", "cancelled", "delivered"],
+            default: "assigned",
+        },
+        cancelReason: {
+            type: String,
+        },
+        cancelledBy: {
+            type: String,
+            enum: ["deliveryExec", "user", "restaurant"],
         },
     },
     {

@@ -1,4 +1,6 @@
+const AssignedOrders = require("../models/assignedOrdersModel");
 const Cart = require("../models/cartModel");
+const Coupon = require("../models/couponModel");
 const Favorite = require("../models/favoriteModel");
 const Order = require("../models/orderModel");
 const Product = require("../models/productModel");
@@ -110,13 +112,45 @@ exports.addAddress = catchAsync(async (req, res, next) => {
     res.status(200).json({ message: 'Address added successfully' });
 })
 
+
+exports.updateAddress = catchAsync(async (req, res, next) => {
+    const { lat, lng, state, city, pinCode, addressLine } = req.body;
+    const userId = req.user._id;
+    const { addressId } = req.query;
+
+    if (!userId || !state || !city || !pinCode || !lat || !lng || !addressLine || !addressId) {
+        return next(new AppError("All fields are required", 400));
+    }
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+        return next(new AppError("User not found", 404));
+    }
+
+    const addressIndex = user.addresses.findIndex(address => address._id.toString() === addressId);
+
+    if (addressIndex === -1) {
+        return next(new AppError("Address not found", 404));
+    }
+
+    user.addresses[addressIndex] = { lat, lng, state, city, pinCode, addressLine };
+
+    await user.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Address updated successfully'
+    });
+});
+
 exports.removeAddress = catchAsync(async (req, res, next) => {
     const { addressId } = req.query;
     const userId = req?.user?._id;
 
-    // if (!userId || !addressId) {
-    //     return next(new AppError("All fields are required", 400));
-    // }
+    if (!userId || !addressId) {
+        return next(new AppError("All fields are required", 400));
+    }
 
     const user = await User.findById(userId);
 
@@ -133,7 +167,10 @@ exports.removeAddress = catchAsync(async (req, res, next) => {
         return next(new AppError("Address not found or already removed", 404));
     }
 
-    res.status(200).json({ message: 'Address removed successfully' });
+    res.status(200).json({
+        success: true,
+        message: 'Address removed successfully'
+    });
 })
 
 exports.getRestaurantsNearUser = catchAsync(async (req, res, next) => {
@@ -473,7 +510,6 @@ exports.placeOrder = catchAsync(async (req, res, next) => {
     const userId = req.user._id;
     const { restaurantId, deliveryTime, cookingInstructions, tip, orderValue, address, discount } = req.body;
 
-    // Find the user's cart
     const cart = await Cart.findOne({ userId });
 
     if (!cart) {
@@ -484,7 +520,6 @@ exports.placeOrder = catchAsync(async (req, res, next) => {
         return next(new AppError('No products in cart.', 400));
     }
 
-    // Create a new order
     const order = new Order({
         userId,
         restaurantId,
@@ -495,13 +530,11 @@ exports.placeOrder = catchAsync(async (req, res, next) => {
         discount,
         tip,
         address,
-        products: cart.products // Including products from the cart in the order
+        products: cart.products
     });
 
-    // Save the order
     await order.save();
 
-    // Clear the user's cart
     cart.products = [];
     await cart.save();
 
@@ -617,110 +650,8 @@ exports.searchRestaurantsAndDishes = catchAsync(async (req, res, next) => {
 });
 
 
-// exports.filterAndSortRestaurants = catchAsync(async (req, res, next) => {
-//     const { rating, vegMode, sortBy, lat, lng } = req.query;
-
-//     let restaurantMatch = {};
-//     let sortCriteria = {};
-
-//     // Filter Restaurants by veg mode
-//     if (vegMode === 'pureVeg') {
-//         restaurantMatch.restaurantType = 'veg';
-//     }
-
-//     // Determine sort criteria
-//     switch (sortBy) {
-//         case 'rating':
-//             sortCriteria.averageRating = -1; // High to Low
-//             break;
-//         case 'deliveryTime':
-//             sortCriteria.deliveryTime = 1; // Low to High
-//             break;
-//         case 'costLowToHigh':
-//             sortCriteria.cost = 1; // Low to High
-//             break;
-//         case 'costHighToLow':
-//             sortCriteria.cost = -1; // High to Low
-//             break;
-//         case 'distance':
-//             // Ensure we sort by distance if coordinates are provided
-//             if (lat && lng) {
-//                 sortCriteria = { distance: 1 }; // Low to High distance
-//             }
-//             break;
-//         default:
-//             break;
-//     }
-
-//     // Aggregate restaurants with their average ratings and distance if applicable
-//     const restaurants = await Restaurant.aggregate([
-//         {
-//             $match: restaurantMatch
-//         },
-//         {
-//             $lookup: {
-//                 from: 'reviews',
-//                 localField: '_id',
-//                 foreignField: 'reviewTo.restaurantId',
-//                 as: 'reviews'
-//             }
-//         },
-//         {
-//             $addFields: {
-//                 averageRating: { $avg: '$reviews.rating' }
-//             }
-//         },
-//         {
-//             $project: {
-//                 name: 1,
-//                 address: 1,
-//                 averageRating: 1,
-//                 deliveryTime: 1,
-//                 cost: 1,
-//                 distance: {
-//                     $let: {
-//                         vars: {
-//                             coords: {
-//                                 lat: parseFloat(lat),
-//                                 lng: parseFloat(lng)
-//                             }
-//                         },
-//                         in: {
-//                             $geoNear: {
-//                                 $geometry: {
-//                                     type: "Point",
-//                                     coordinates: ["$$coords.lng", "$$coords.lat"]
-//                                 },
-//                                 $maxDistance: 1000000, // Use a large enough distance to include all
-//                                 distanceField: "distance",
-//                                 spherical: true
-//                             }
-//                         }
-//                     }
-//                 }
-//             }
-//         },
-//         {
-//             $match: rating ? { averageRating: { $gte: parseFloat(rating) } } : {}
-//         },
-//         {
-//             $sort: sortCriteria
-//         }
-//     ]);
-
-//     if (!restaurants.length) {
-//         return next(new AppError('No restaurants found matching the criteria.', 404));
-//     }
-
-//     res.status(200).json({
-//         success: true,
-//         restaurants,
-//     });
-// });
-
-
 exports.filterAndSortRestaurants = catchAsync(async (req, res, next) => {
-    const { rating, vegMode, sortBy, lat, lng, maxDistance=2000 } = req.query;
+    const { rating, vegMode, sortBy, lat, lng, maxDistance = 2000 } = req.query;
 
     // Build the match stage for filtering
     const matchStage = {};
@@ -821,5 +752,133 @@ exports.filterAndSortRestaurants = catchAsync(async (req, res, next) => {
         success: true,
         restaurants,
         length: restaurants.length
+    });
+});
+
+exports.cancelOrder = catchAsync(async (req, res, next) => {
+    const userId = req?.user?._id;
+    const { orderId } = req.params;
+    const { cancellationReason } = req.body;
+
+    if (!orderId || !cancellationReason) {
+        return next(new AppError('OrderId and cancellationReason are required.', 400));
+    }
+
+    const order = await Order.findOneAndUpdate(
+        { _id: orderId },
+        {
+            status: "cancelled",
+            cancellationReason,
+            cancelledBy: "user"
+        },
+        { new: true }
+    );
+
+    if (!order) {
+        return next(new AppError('Order not found or already completed/cancelled', 404));
+    }
+
+    const assignedOrder = await AssignedOrders.findOneAndUpdate(
+        { orderId },
+        {
+            status: "cancelled",
+            cancellationReason,
+            cancelledBy: "user"
+        },
+        { new: true }
+    );
+
+    if (!assignedOrder) {
+        return next(new AppError('Assigned order not found or already completed/cancelled', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        message: "Order cancelled successfully!",
+    });
+});
+
+
+exports.getOrderDetails = catchAsync(async (req, res, next) => {
+    const userId = req?.user?._id;
+    const { orderId } = req.params;
+
+    if (!orderId) {
+        return next(new AppError('OrderId is required.', 400));
+    }
+
+    const order = await Order.findOne({ _id: orderId })
+        .populate('userId')
+        .populate('restaurantId')
+        .populate('products.productId');
+
+    if (!order) {
+        return next(new AppError('No order found with this id.', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        order,
+    });
+});
+
+
+exports.getOrderLocation = catchAsync(async (req, res, next) => {
+    const userId = req?.user?._id;
+    const { orderId } = req.params;
+
+    if (!orderId) {
+        return next(new AppError('OrderId is required.', 400));
+    }
+
+    const order = await Order.findOne({ _id: orderId });
+
+    if (!order) {
+        return next(new AppError('No order found with this id and user.', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        location: {
+            lat: order.address.lat,
+            lng: order.address.lng
+        }
+    });
+});
+
+
+exports.applyCoupon = catchAsync(async (req, res, next) => {
+    const { couponCode, orderValue } = req.body;
+
+    if (!couponCode || orderValue === undefined) {
+        return next(new AppError('Coupon code and order value are required.', 400));
+    }
+
+    const coupon = await Coupon.findOne({ code: couponCode.toUpperCase() });
+    if (!coupon) {
+        return next(new AppError('Invalid coupon code.', 400));
+    }
+
+    if (new Date() > coupon.expiry) {
+        return next(new AppError('Coupon has expired.', 400));
+    }
+
+    // Calculate discount
+    let discount = 0;
+    if (coupon.percentage) {
+        discount = (orderValue * coupon.percentage) / 100;
+        discount > coupon.maxLimit ? discount = coupon.maxLimit : discount;
+    } else if (coupon.amount) {
+        discount = coupon.amount;
+    }
+
+    const finalOrderValue = orderValue - discount;
+
+    res.status(200).json({
+        success: true,
+        message: 'Coupon applied successfully',
+        coupon,
+        discount,
+        orderValue: finalOrderValue
     });
 });

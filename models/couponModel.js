@@ -10,7 +10,7 @@ const couponSchema = new mongoose.Schema(
         code: {
             type: String,
             required: true,
-            unique:true
+            unique: true
         },
 
         expiry: {
@@ -22,6 +22,21 @@ const couponSchema = new mongoose.Schema(
             type: String,
             required: true,
             enum: ["cart", "freebies", "free delivery"]
+        },
+        percentage: {
+            type: Number,
+            required: false,
+        },
+
+        amount: {
+            type: Number,
+            required: false
+        },
+
+        maxLimit: {
+            type: Number,
+            required: true,
+            default: 0
         },
     },
     {
