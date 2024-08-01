@@ -33,6 +33,7 @@ app.use(session({
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "build")));
+app.use(express.static(path.resolve("./public")));
 app.use(
     cors({
         origin: process.env.FRONT_END_URL, // Specify the allowed origin
