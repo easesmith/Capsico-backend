@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
+const http = require("http");
+const { Server } = require("socket.io");
 
 process.on('uncaughtException', err => {
   console.log('UNCAUGHT EXCEPTION! Shutting down...');
@@ -25,15 +27,30 @@ mongoose
   });
 
 
+
+
+const httpServer = http.createServer(app);
+const io = new Server(httpServer);
+module.exports = io
+
+const notificationController = require("./controllers/notificationController");
+notificationController.notify(io);
+
+
 const port = process.env.PORT || 5000;
 
-const server = app.listen(port, function () {
+app.get("/", (req, res) => {
+  return res.sendFile("/public/index.html");
+});
+
+const server = httpServer.listen(port, function () {
   console.log(`App is running on port http://localhost:${port}`);
 });
 
+
 process.on('unhandledRejection', err => {
   console.log('UNHANDLED REJECTION! Shutting down...');
-  console.log('ERROR',err)
+  console.log('ERROR', err)
   // console.log(err.name, err.message);
   server.close(() => {
     process.exit(1)

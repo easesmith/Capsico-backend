@@ -63,15 +63,15 @@ exports.assignOrderToDeliveryExec = catchAsync(async (req, res, next) => {
     if (!order) {
         return next(new AppError('Order not found', 404));
     }
-
     const { lat, lng } = order.address;
+    console.log("Order",order.address);
 
     const deliveryExec = await DeliveryExec.findOne({
         location: {
             $near: {
                 $geometry: {
                     type: "Point",
-                    coordinates: [lat, lng]
+                    coordinates: [lng, lat]
                 },
                 $maxDistance: 5000 // 5 kilometers
             }

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat APP</title>
+</head>
+
+<body>
+  <h1>Chatting</h1>
+
+  <div id="notifications"></d
+  <div>
+    <button id="sendUserBtn">Send Notification to User</button>
+  </div>
+  <div>
+    <button id="sendDeliveryExecBtn">Send Notification to DeliveryExec</button>
+  </div>
+  <div>
+    <button id="sendRestaurantBtn">Send Notification to Restaurant</button>
+  </div>
+
+  <div id="messages"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const sendUserBtn = document.getElementById("sendUserBtn");
+    const sendDeliveryExecBtn = document.getElementById("sendDeliveryExecBtn");
+    const sendRestaurantBtn = document.getElementById("sendRestaurantBtn");
+    const messageInput = document.getElementById("message");
+    const allMessages = document.getElementById("messages");
+
+    const deliveryExecId = "66a8db95115904247b749533";
+    const restaurantId = "6698ad56328f2c457bb7e971";
+
+    socket.emit('joinDeliveryExecRoom', deliveryExecId);
+    socket.emit('joinRestaurantRoom', restaurantId);
+
+    socket.on("message", (message) => {
+      const p = document.createElement("p");
+      p.innerText = message;
+      allMessages.appendChild(p);
+    });
+
+    sendUserBtn.addEventListener("click", (e) => {
+      socket.emit("notify-user", "Delivery Partner assigned");
+    });
+
+    sendRestaurantBtn.addEventListener("click", (e) => {
+      socket.emit("notify-restaurant-about-order", "User Order to restaurant");
+    });
+    
+
+    sendDeliveryExecBtn.addEventListener("click", (e) => {
+      socket.emit("notify-deliveryExec-about-order", "New Order from user");
+    });
+
+    socket.on('orderAssigned', (data) => {
+      const notificationsDiv = document.getElementById('notifications');
+      const newNotification = document.createElement('div');
+      newNotification.textContent = `New order assigned: ${data.orderId}`;
+      notificationsDiv.appendChild(newNotification);
+    });
+
+  </script>
+</body>
+
+</html>
