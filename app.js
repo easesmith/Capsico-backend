@@ -12,6 +12,7 @@ const session = require("express-session");
 const passport = require("passport");
 const restaurantRouter = require("./routes/restaurantRoutes");
 const deliveryExecRouter = require("./routes/deliveryExecRoutes");
+const notificationRouter = require("./routes/notificationRoutes");
 
 const limiter = rateLimit({
     windowMs: 1 * 60 * 1000,
@@ -56,6 +57,7 @@ const userRouter = require("./routes/userRoutes");
 app.use("/api/v1/user", userRouter);
 app.use("/api/v1/restaurant", restaurantRouter);
 app.use("/api/v1/deliveryExec", deliveryExecRouter);
+app.use("/api/v1/notification", notificationRouter);
 
 
 // app.get("*", (req, res) => {
