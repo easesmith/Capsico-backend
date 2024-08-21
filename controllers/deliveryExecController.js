@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const { notifyDeliveryExec } = require("../utils/notification");
 const AssignedOrders = require("../models/assignedOrdersModel");
 const AppError = require("../utils/appError");
+const Complaint = require("../models/complaintModel");
 
 exports.deliveryExecSignup = catchAsync(async (req, res, next) => {
     const { email, password, phone, type, address, coordinates } = req.body;
@@ -228,5 +229,33 @@ exports.updateOrderLocation = catchAsync(async (req, res, next) => {
     res.status(200).json({
         success: true,
         message: 'Order location updated successfully!',
+    });
+});
+
+
+exports.addComplaint = catchAsync(async (req, res, next) => {
+    const deliveryExecId = req?.deliveryExec?._id;
+    const { userId,orderId, restaurantId, description, type } = req.body;
+
+    if (!description || !type) {
+        return next(new AppError('Description and complaint type are required.', 400));
+    }
+
+    const complaint = new Complaint({
+        userId: userId || null,
+        orderId: orderId || null,
+        deliveryExecId: deliveryExecId || null,
+        restaurantId: restaurantId || null,
+        description,
+        type,
+        status: "Pending",
+    });
+
+    await complaint.save();
+
+
+    res.status(201).json({
+        success: true,
+        message: 'Complaint added successfully',
     });
 });

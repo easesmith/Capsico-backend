@@ -10,6 +10,7 @@ const bcrypt = require("bcryptjs");
 const Review = require("../models/reviewModel");
 const Order = require("../models/orderModel");
 const AssignedOrders = require("../models/assignedOrdersModel");
+const Complaint = require("../models/complaintModel");
 
 
 exports.addRestaurant = catchAsync(async (req, res, next) => {
@@ -641,3 +642,30 @@ exports.cancelOrder = catchAsync(async (req, res, next) => {
     });
 });
 
+
+exports.addComplaint = catchAsync(async (req, res, next) => {
+    const restaurantId = req?.restaurant?._id;
+    const { userId, orderId, deliveryExecId, description, type } = req.body;
+
+    if (!description || !type) {
+        return next(new AppError('Description and complaint type are required.', 400));
+    }
+
+    const complaint = new Complaint({
+        userId: userId || null,
+        orderId: orderId || null,
+        deliveryExecId: deliveryExecId || null,
+        restaurantId: restaurantId || null,
+        description,
+        type,
+        status: "Pending",
+    });
+
+    await complaint.save();
+
+
+    res.status(201).json({
+        success: true,
+        message: 'Complaint added successfully',
+    });
+});
