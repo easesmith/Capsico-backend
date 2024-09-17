@@ -1,5 +1,6 @@
 const AssignedOrders = require("../models/assignedOrdersModel");
 const Cart = require("../models/cartModel");
+const Complaint = require("../models/complaintModel");
 const Coupon = require("../models/couponModel");
 const Favorite = require("../models/favoriteModel");
 const Order = require("../models/orderModel");
@@ -880,5 +881,33 @@ exports.applyCoupon = catchAsync(async (req, res, next) => {
         coupon,
         discount,
         orderValue: finalOrderValue
+    });
+});
+
+
+exports.addComplaint = catchAsync(async (req, res, next) => {
+    const userId = req?.user?._id;
+    const { orderId, deliveryExecId, restaurantId, description, type } = req.body;
+
+    if (!description || !type) {
+        return next(new AppError('Description and complaint type are required.', 400));
+    }
+
+    const complaint = new Complaint({
+        userId: userId || null,
+        orderId: orderId || null,
+        deliveryExecId: deliveryExecId || null,
+        restaurantId: restaurantId || null,
+        description,
+        type,
+        status: "Pending",
+    });
+
+    await complaint.save();
+
+
+    res.status(201).json({
+        success: true,
+        message: 'Complaint added successfully',
     });
 });

@@ -51,5 +51,8 @@ router.get('/accept-order', restaurantController.acceptOrder); // 30/07/24
 router.get('/get-orders', restaurantController.getOrders); // 31/07/24
 router.post('/cancel-order/:orderId', restaurantController.cancelOrder); // 31/07/24
 
+// Complaint routes
+router.post('/add-complaint',restaurantController.addComplaint) // 21/08/24
+
 
 module.exports = router;

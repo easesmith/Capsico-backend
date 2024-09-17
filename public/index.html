@@ -5,15 +5,14 @@
   <meta charset="UTF-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Chat APP</title>
+  <title>Notification APP</title>
 </head>
 
 <body>
-  <h1>Chatting</h1>
+  <h1>Real time notifications</h1>
 
-  <div id="notifications"></d
-  <div>
-    <button id="sendUserBtn">Send Notification to User</button>
+  <div id="notifications"></div>
+  <button id="sendUserBtn">Send Notification to User</button>
   </div>
   <div>
     <button id="sendDeliveryExecBtn">Send Notification to DeliveryExec</button>
@@ -52,7 +51,7 @@
     sendRestaurantBtn.addEventListener("click", (e) => {
       socket.emit("notify-restaurant-about-order", "User Order to restaurant");
     });
-    
+
 
     sendDeliveryExecBtn.addEventListener("click", (e) => {
       socket.emit("notify-deliveryExec-about-order", "New Order from user");

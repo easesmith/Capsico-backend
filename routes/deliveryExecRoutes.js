@@ -21,4 +21,7 @@ router.post("/cancel-order", deliveryExecController.cancelOrder) // 30/07/24
 router.get("/complete-order", deliveryExecController.completeOrder) // 31/07/24
 router.post("/update-order-location/:orderId", deliveryExecController.updateOrderLocation) // 31/07/24
 
+// Complaint routes
+router.post('/add-complaint',deliveryExecController.addComplaint) // 21/08/24
+
 module.exports = router;

@@ -103,5 +103,8 @@ router.get('/apply-coupon', userController.applyCoupon); // 31/07/24
 router.get('/search-restaurantsAndDishes', userController.searchRestaurantsAndDishes); // 20/07/24
 router.get('/filter-sort-restaurants', userController.filterAndSortRestaurants); // 25/07/24
 
+// Complaint routes
+router.post('/add-complaint',userController.addComplaint) // 21/08/24
+
 
 module.exports = router;
