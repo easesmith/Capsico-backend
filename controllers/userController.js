@@ -204,6 +204,176 @@ exports.postRating = catchAsync(async (req, res) => {
   });
 });
 
+exports.unifiedSearch = catchAsync(async (req, res, next) => {
+  const { query, lat, lng, page = 1, limit = 10 } = req.body;
+  console.log(req.body);
+  if (!query || !lat || !lng) {
+    return next(
+      new AppError("Please provide search query, latitude, and longitude", 400)
+    );
+  }
+
+  const coordinates = [parseFloat(lng), parseFloat(lat)];
+  const parsedPage = parseInt(page);
+  const parsedLimit = parseInt(limit);
+  const skip = (parsedPage - 1) * parsedLimit;
+
+  // Create text index for efficient text search
+  await Restaurant.collection.createIndex({
+    name: "text",
+    "categoryServes.name": "text",
+  });
+  await Food.collection.createIndex({ name: "text", description: "text" });
+
+  // Restaurant aggregation pipeline
+  const restaurantPipeline = [
+    {
+      $match: {
+        $text: { $search: query },
+      },
+    },
+    {
+      $project: {
+        name: 1,
+        logo: 1,
+        image: { $arrayElemAt: ["$images", 0] },
+        rating: 1,
+        ratingCount: 1,
+        priceForOne: 1,
+        cuisines: "$categoryServes.name",
+        address: "$address.addressLine",
+        location: "$address.coordinates",
+        createdAt: 1,
+      },
+    },
+    {
+      $geoNear: {
+        near: { type: "Point", coordinates },
+        distanceField: "distance",
+        maxDistance: 10000, // 10km in meters
+        spherical: true,
+      },
+    },
+    { $skip: skip },
+    { $limit: parsedLimit },
+  ];
+
+  // Food aggregation pipeline
+  const foodPipeline = [
+    {
+      $match: {
+        $text: { $search: query },
+      },
+    },
+    {
+      $lookup: {
+        from: "restaurants",
+        localField: "restaurantId",
+        foreignField: "_id",
+        as: "restaurant",
+      },
+    },
+    { $unwind: "$restaurant" },
+    {
+      $project: {
+        name: 1,
+        image: { $arrayElemAt: ["$images", 0] },
+        rating: 1,
+        ratingCount: 1,
+        price: 1,
+        discountedPrice: 1,
+        veg: 1,
+        description: 1,
+        customizable: {
+          $cond: [{ $ifNull: ["$availableTimings", false] }, true, false],
+        },
+        isBestseller: { $gte: ["$rating", 4.5] },
+        restaurantId: "$restaurant._id",
+        restaurantName: "$restaurant.name",
+        restaurantLocation: "$restaurant.address.coordinates",
+      },
+    },
+    {
+      $geoNear: {
+        near: { type: "Point", coordinates },
+        distanceField: "distance",
+        maxDistance: 10000, // 10km in meters
+        spherical: true,
+        key: "restaurantLocation",
+      },
+    },
+    { $skip: skip },
+    { $limit: parsedLimit },
+  ];
+
+  // Execute the aggregation on both collections
+  const [restaurants, foods, totalRestaurants, totalFoods] = await Promise.all([
+    Restaurant.aggregate(restaurantPipeline),
+    Food.aggregate(foodPipeline),
+    Restaurant.countDocuments({ $text: { $search: query } }),
+    Food.countDocuments({ $text: { $search: query } }),
+  ]);
+
+  // Process restaurant results
+  const formattedRestaurants = restaurants.map((restaurant) => {
+    const distanceInKm = restaurant.distance / 1000;
+    const deliveryTime = calculateDeliveryTime(distanceInKm);
+    const isFreeDelivery = distanceInKm <= 3;
+    const isNew =
+      (new Date() - new Date(restaurant.createdAt)) / (1000 * 60 * 60 * 24) <=
+      30;
+
+    return {
+      id: restaurant._id,
+      name: restaurant.name,
+      logo: restaurant.logo,
+      image: restaurant.image,
+      rating: restaurant.rating.toFixed(1),
+      ratingCount: `${restaurant.ratingCount}+ ratings`,
+      cuisines: restaurant.cuisines ? restaurant.cuisines.join(" • ") : "",
+      priceForOne: `₹${restaurant.priceForOne} for one`,
+      distance: `${distanceInKm.toFixed(1)} km`,
+      deliveryTime: `${deliveryTime} min`,
+      freeDelivery: isFreeDelivery,
+      offer: "50% OFF up to ₹80", // This should be dynamically calculated based on actual offers
+      promoted: false, // This should be determined based on your business logic
+      new: isNew,
+    };
+  });
+
+  // Process food results
+  const formattedFoods = foods.map((food) => ({
+    id: food._id,
+    name: food.name,
+    image: food.image,
+    rating: food.rating.toFixed(1),
+    ratingCount: `${food.ratingCount}+ ratings`,
+    price: food.price,
+    discountedPrice: food.discountedPrice,
+    veg: food.veg,
+    description: food.description,
+    customizable: food.customizable,
+    isBestseller: food.isBestseller,
+    restaurantId: food.restaurantId,
+    restaurantName: food.restaurantName,
+    distance: `${(food.distance / 1000).toFixed(1)} km`,
+    deliveryTime: `${calculateDeliveryTime(food.distance / 1000)} min`,
+  }));
+
+  const totalResults = totalRestaurants + totalFoods;
+  const totalPages = Math.ceil(totalResults / parsedLimit);
+
+  res.status(200).json({
+    success: true,
+    restaurants: formattedRestaurants,
+    foods: formattedFoods,
+    currentPage: parsedPage,
+    totalPages: totalPages,
+    totalResults: totalResults,
+    message: "Search results retrieved successfully",
+  });
+});
+
 exports.getOTP = catchAsync(async (req, res, next) => {
   const { phone, email, isEmail } = req.query;
 
@@ -952,9 +1122,111 @@ exports.logout = catchAsync(async (req, res, next) => {
     });
   }
 });
+exports.searchRestaurantsAndDishesA = catchAsync(async (req, res, next) => {
+  const { search, userLocation } = req.body;
+
+  if (!search || !userLocation || !userLocation.lat || !userLocation.lng) {
+    return next(
+      new AppError("Please provide a search term and valid user location", 400)
+    );
+  }
+  // db.restaurants.getIndexes();
+  // Step 1: Find nearby restaurants
+  const restaurants = await Restaurant.aggregate([
+    {
+      $geoNear: {
+        near: {
+          type: "Point",
+          coordinates: [userLocation.lng, userLocation.lat],
+        },
+        distanceField: "distance",
+        maxDistance: 10000, // 10 km
+        spherical: true,
+      },
+    },
+    {
+      $lookup: {
+        from: "categories",
+        localField: "categoryServes.categoryId",
+        foreignField: "_id",
+        as: "categories",
+      },
+    },
+    {
+      $match: {
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { "categories.name": { $regex: search, $options: "i" } },
+        ],
+      },
+    },
+    {
+      $project: {
+        name: 1,
+        email: 1,
+        phone: 1,
+        restaurantType: 1,
+        address: 1,
+        categoryServes: 1,
+        isSubscriptionActive: 1,
+        distance: 1, // Include distance in the output
+      },
+    },
+  ]);
+
+  // Step 2: Find nearby food dishes
+  const dishes = await Food.aggregate([
+    {
+      $geoNear: {
+        near: {
+          type: "Point",
+          coordinates: [userLocation.lng, userLocation.lat],
+        },
+        distanceField: "distance",
+        maxDistance: 10000, // 10 km
+        spherical: true,
+        query: {
+          $or: [
+            { name: { $regex: search, $options: "i" } },
+            { description: { $regex: search, $options: "i" } },
+          ],
+        },
+      },
+    },
+    {
+      $lookup: {
+        from: "restaurants",
+        localField: "restaurantId",
+        foreignField: "_id",
+        as: "restaurant",
+      },
+    },
+    {
+      $unwind: "$restaurant",
+    },
+    {
+      $project: {
+        name: 1,
+        description: 1,
+        price: 1,
+        discountedPrice: 1,
+        veg: 1,
+        restaurant: "$restaurant.name",
+        distance: 1, // Include distance in the output
+      },
+    },
+  ]);
+
+  res.status(200).json({
+    success: true,
+    restaurants,
+    dishes,
+    message: "Restaurants and dishes retrieved successfully",
+  });
+});
 
 exports.searchRestaurantsAndDishes = catchAsync(async (req, res, next) => {
-  const { search } = req.query;
+  const { search } = req.body;
 
   if (!search) {
     return next(new AppError("Please provide a search term", 400));

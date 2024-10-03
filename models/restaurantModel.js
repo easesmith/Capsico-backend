@@ -88,7 +88,7 @@ const restaurantSchema = new mongoose.Schema(
 );
 
 // Creating the 2dsphere index on the location field
-restaurantSchema.index({ address: "2dsphere" });
+restaurantSchema.index({ "address.coordinates": "2dsphere" });
 
 const Restaurant = mongoose.model("Restaurant", restaurantSchema);
 module.exports = Restaurant;

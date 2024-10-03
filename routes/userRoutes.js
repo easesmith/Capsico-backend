@@ -13,7 +13,9 @@ const authController = require("../controllers/authController");
 const upload = require("../middlewares/imgUpload");
 
 router.get("/get-login", userController.getLogin);
-router.post("/verify-otp", authController.postVerifyOTP);
+router.post("/verify-otp", userController.postVerifyOTP);
+router.get("/search", userController.searchRestaurantsAndDishesA);
+
 router.get("/get-otp", userController.getOTP);
 router.post("/signup", authController.userSignup);
 
