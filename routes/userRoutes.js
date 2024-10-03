@@ -14,7 +14,7 @@ const upload = require("../middlewares/imgUpload");
 
 router.get("/post-login", userController.postLogin);
 router.post("/verify-otp", userController.postVerifyOTP);
-router.get("/search", userController.unifiedSearch);
+router.post("/search", userController.unifiedSearch);
 
 router.get("/get-otp", userController.getOTP);
 router.post("/signup", authController.userSignup);

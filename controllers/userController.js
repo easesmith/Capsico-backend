@@ -205,7 +205,7 @@ exports.postRating = catchAsync(async (req, res) => {
 });
 
 exports.unifiedSearch = catchAsync(async (req, res, next) => {
-  const { query, lat, lng, page = 1, limit = 10 } = req.body;
+  const { query, lat, lng, page = 1, limit = 10, type = "all" } = req.body;
   console.log(req.body);
   if (!query || !lat || !lng) {
     return next(
@@ -218,28 +218,20 @@ exports.unifiedSearch = catchAsync(async (req, res, next) => {
   const parsedLimit = parseInt(limit);
   const skip = (parsedPage - 1) * parsedLimit;
 
-  // Create text index for efficient text search
+  // Ensure indexes are created
+  await Restaurant.collection.createIndex({
+    "address.coordinates": "2dsphere",
+  });
   await Restaurant.collection.createIndex({
     name: "text",
     "categoryServes.name": "text",
   });
   await Food.collection.createIndex({ name: "text", description: "text" });
+  await Food.collection.createIndex({ restaurantId: 1 });
 
-  // Restaurant aggregation pipeline
-  const restaurantPipeline = [
-    {
-      $geoNear: {
-        near: { type: "Point", coordinates },
-        distanceField: "distance",
-        maxDistance: 10000, // 10km in meters
-        spherical: true,
-      },
-    },
-    {
-      $match: {
-        $text: { $search: query },
-      },
-    },
+  // Restaurant queries
+  const restaurantTextSearchPipeline = [
+    { $match: { $text: { $search: query } } },
     {
       $project: {
         name: 1,
@@ -254,18 +246,28 @@ exports.unifiedSearch = catchAsync(async (req, res, next) => {
         createdAt: 1,
       },
     },
-
-    { $skip: skip },
-    { $limit: parsedLimit },
   ];
 
-  // Food aggregation pipeline
-  const foodPipeline = [
+  const restaurantGeoSearchPipeline = [
     {
-      $match: {
-        $text: { $search: query },
+      $geoNear: {
+        near: { type: "Point", coordinates },
+        distanceField: "distance",
+        maxDistance: 10000, // 10km in meters
+        spherical: true,
       },
     },
+    {
+      $project: {
+        _id: 1,
+        distance: 1,
+      },
+    },
+  ];
+
+  // Food queries
+  const foodTextSearchPipeline = [
+    { $match: { $text: { $search: query } } },
     {
       $lookup: {
         from: "restaurants",
@@ -275,15 +277,6 @@ exports.unifiedSearch = catchAsync(async (req, res, next) => {
       },
     },
     { $unwind: "$restaurant" },
-    {
-      $geoNear: {
-        near: { type: "Point", coordinates },
-        distanceField: "distance",
-        maxDistance: 10000, // 10km in meters
-        spherical: true,
-        key: "restaurant.address.coordinates", // Updated to use the correct field from the restaurant document
-      },
-    },
     {
       $project: {
         name: 1,
@@ -303,47 +296,85 @@ exports.unifiedSearch = catchAsync(async (req, res, next) => {
         restaurantLocation: "$restaurant.address.coordinates",
       },
     },
-    { $skip: skip },
-    { $limit: parsedLimit },
   ];
 
-  // Execute the aggregation on both collections
-  const [restaurants, foods, totalRestaurants, totalFoods] = await Promise.all([
-    Restaurant.aggregate(restaurantPipeline),
-    Food.aggregate(foodPipeline),
+  // Execute queries
+  const [
+    restaurantsText,
+    restaurantsGeo,
+    foodsText,
+    totalRestaurants,
+    totalFoods,
+  ] = await Promise.all([
+    Restaurant.aggregate(restaurantTextSearchPipeline),
+    Restaurant.aggregate(restaurantGeoSearchPipeline),
+    Food.aggregate(foodTextSearchPipeline),
     Restaurant.countDocuments({ $text: { $search: query } }),
     Food.countDocuments({ $text: { $search: query } }),
   ]);
 
-  // Process restaurant results
-  const formattedRestaurants = restaurants.map((restaurant) => {
-    const distanceInKm = restaurant.distance / 1000;
-    const deliveryTime = calculateDeliveryTime(distanceInKm);
-    const isFreeDelivery = distanceInKm <= 3;
-    const isNew =
+  // Combine and filter results
+  const restaurantMap = new Map(
+    restaurantsGeo.map((r) => [r._id.toString(), r.distance])
+  );
+  const restaurants = restaurantsText
+    .filter((r) => restaurantMap.has(r._id.toString()))
+    .map((r) => ({
+      ...r,
+      distance: restaurantMap.get(r._id.toString()),
+    }))
+    .sort((a, b) => a.distance - b.distance);
+
+  const foodMap = new Map(foodsText.map((f) => [f._id.toString(), f]));
+  const foods = restaurantsGeo
+    .flatMap((r) => {
+      const restaurantFoods = foodsText.filter((f) =>
+        f.restaurantId.equals(r._id)
+      );
+      return restaurantFoods.map((f) => ({
+        ...f,
+        distance: r.distance,
+      }));
+    })
+    .filter((f) => foodMap.has(f._id.toString()))
+    .sort((a, b) => a.distance - b.distance);
+
+  // Apply pagination based on type
+  let paginatedRestaurants = [];
+  let paginatedFoods = [];
+  let totalResults = 0;
+
+  if (type === "restaurants" || type === "all") {
+    paginatedRestaurants = restaurants.slice(skip, skip + parsedLimit);
+    totalResults += totalRestaurants;
+  }
+
+  if (type === "foods" || type === "all") {
+    paginatedFoods = foods.slice(skip, skip + parsedLimit);
+    totalResults += totalFoods;
+  }
+
+  // Format results
+  const formattedRestaurants = paginatedRestaurants.map((restaurant) => ({
+    id: restaurant._id,
+    name: restaurant.name,
+    logo: restaurant.logo,
+    image: restaurant.image,
+    rating: restaurant.rating.toFixed(1),
+    ratingCount: `${restaurant.ratingCount}+ ratings`,
+    cuisines: restaurant.cuisines ? restaurant.cuisines.join(" • ") : "",
+    priceForOne: `₹${restaurant.priceForOne} for one`,
+    distance: `${(restaurant.distance / 1000).toFixed(1)} km`,
+    deliveryTime: `${calculateDeliveryTime(restaurant.distance / 1000)} min`,
+    freeDelivery: restaurant.distance <= 3000,
+    offer: "50% OFF up to ₹80", // This should be dynamically calculated based on actual offers
+    promoted: false, // This should be determined based on your business logic
+    new:
       (new Date() - new Date(restaurant.createdAt)) / (1000 * 60 * 60 * 24) <=
-      30;
+      30,
+  }));
 
-    return {
-      id: restaurant._id,
-      name: restaurant.name,
-      logo: restaurant.logo,
-      image: restaurant.image,
-      rating: restaurant.rating.toFixed(1),
-      ratingCount: `${restaurant.ratingCount}+ ratings`,
-      cuisines: restaurant.cuisines ? restaurant.cuisines.join(" • ") : "",
-      priceForOne: `₹${restaurant.priceForOne} for one`,
-      distance: `${distanceInKm.toFixed(1)} km`,
-      deliveryTime: `${deliveryTime} min`,
-      freeDelivery: isFreeDelivery,
-      offer: "50% OFF up to ₹80", // This should be dynamically calculated based on actual offers
-      promoted: false, // This should be determined based on your business logic
-      new: isNew,
-    };
-  });
-
-  // Process food results
-  const formattedFoods = foods.map((food) => ({
+  const formattedFoods = paginatedFoods.map((food) => ({
     id: food._id,
     name: food.name,
     image: food.image,
@@ -361,16 +392,18 @@ exports.unifiedSearch = catchAsync(async (req, res, next) => {
     deliveryTime: `${calculateDeliveryTime(food.distance / 1000)} min`,
   }));
 
-  const totalResults = totalRestaurants + totalFoods;
   const totalPages = Math.ceil(totalResults / parsedLimit);
 
   res.status(200).json({
     success: true,
     restaurants: formattedRestaurants,
     foods: formattedFoods,
-    currentPage: parsedPage,
-    totalPages: totalPages,
-    totalResults: totalResults,
+    pagination: {
+      currentPage: parsedPage,
+      totalPages: totalPages,
+      totalResults: totalResults,
+      limit: parsedLimit,
+    },
     message: "Search results retrieved successfully",
   });
 });
