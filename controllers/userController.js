@@ -25,7 +25,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
 const JWT_EXPIRES_IN = "24h";
 
 // Step 1: Initiate login/signup process
-exports.getLogin = catchAsync(async (req, res) => {
+exports.postLogin = catchAsync(async (req, res) => {
   const { phone } = req.body;
 
   if (!phone) {
@@ -228,6 +228,14 @@ exports.unifiedSearch = catchAsync(async (req, res, next) => {
   // Restaurant aggregation pipeline
   const restaurantPipeline = [
     {
+      $geoNear: {
+        near: { type: "Point", coordinates },
+        distanceField: "distance",
+        maxDistance: 10000, // 10km in meters
+        spherical: true,
+      },
+    },
+    {
       $match: {
         $text: { $search: query },
       },
@@ -246,14 +254,7 @@ exports.unifiedSearch = catchAsync(async (req, res, next) => {
         createdAt: 1,
       },
     },
-    {
-      $geoNear: {
-        near: { type: "Point", coordinates },
-        distanceField: "distance",
-        maxDistance: 10000, // 10km in meters
-        spherical: true,
-      },
-    },
+
     { $skip: skip },
     { $limit: parsedLimit },
   ];
@@ -275,6 +276,15 @@ exports.unifiedSearch = catchAsync(async (req, res, next) => {
     },
     { $unwind: "$restaurant" },
     {
+      $geoNear: {
+        near: { type: "Point", coordinates },
+        distanceField: "distance",
+        maxDistance: 10000, // 10km in meters
+        spherical: true,
+        key: "restaurant.address.coordinates", // Updated to use the correct field from the restaurant document
+      },
+    },
+    {
       $project: {
         name: 1,
         image: { $arrayElemAt: ["$images", 0] },
@@ -291,15 +301,6 @@ exports.unifiedSearch = catchAsync(async (req, res, next) => {
         restaurantId: "$restaurant._id",
         restaurantName: "$restaurant.name",
         restaurantLocation: "$restaurant.address.coordinates",
-      },
-    },
-    {
-      $geoNear: {
-        near: { type: "Point", coordinates },
-        distanceField: "distance",
-        maxDistance: 10000, // 10km in meters
-        spherical: true,
-        key: "restaurantLocation",
       },
     },
     { $skip: skip },
@@ -1132,6 +1133,22 @@ exports.searchRestaurantsAndDishesA = catchAsync(async (req, res, next) => {
   }
   // db.restaurants.getIndexes();
   // Step 1: Find nearby restaurants
+
+  // const restaurants = await Restaurant.aggregate([
+  //   {
+  //     $geoNear: {
+  //       near: {
+  //         type: "Point",
+  //         coordinates: [userLocation.lng, userLocation.lat],
+  //       }, // Use actual coordinates
+  //       distanceField: "dist.calculated",
+  //       maxDistance: 10000, // 10 km in meters
+  //       spherical: true,
+  //       query: { isSubscriptionActive: true }, // Add any additional filters here
+  //     },
+  //   },
+  // ]);
+
   const restaurants = await Restaurant.aggregate([
     {
       $geoNear: {
@@ -1175,52 +1192,52 @@ exports.searchRestaurantsAndDishesA = catchAsync(async (req, res, next) => {
   ]);
 
   // Step 2: Find nearby food dishes
-  const dishes = await Food.aggregate([
-    {
-      $geoNear: {
-        near: {
-          type: "Point",
-          coordinates: [userLocation.lng, userLocation.lat],
-        },
-        distanceField: "distance",
-        maxDistance: 10000, // 10 km
-        spherical: true,
-        query: {
-          $or: [
-            { name: { $regex: search, $options: "i" } },
-            { description: { $regex: search, $options: "i" } },
-          ],
-        },
-      },
-    },
-    {
-      $lookup: {
-        from: "restaurants",
-        localField: "restaurantId",
-        foreignField: "_id",
-        as: "restaurant",
-      },
-    },
-    {
-      $unwind: "$restaurant",
-    },
-    {
-      $project: {
-        name: 1,
-        description: 1,
-        price: 1,
-        discountedPrice: 1,
-        veg: 1,
-        restaurant: "$restaurant.name",
-        distance: 1, // Include distance in the output
-      },
-    },
-  ]);
+  // const dishes = await Food.aggregate([
+  //   {
+  //     $geoNear: {
+  //       near: {
+  //         type: "Point",
+  //         coordinates: [userLocation.lng, userLocation.lat],
+  //       },
+  //       distanceField: "distance",
+  //       maxDistance: 10000, // 10 km
+  //       spherical: true,
+  //       query: {
+  //         $or: [
+  //           { name: { $regex: search, $options: "i" } },
+  //           { description: { $regex: search, $options: "i" } },
+  //         ],
+  //       },
+  //     },
+  //   },
+  //   {
+  //     $lookup: {
+  //       from: "restaurants",
+  //       localField: "restaurantId",
+  //       foreignField: "_id",
+  //       as: "restaurant",
+  //     },
+  //   },
+  //   {
+  //     $unwind: "$restaurant",
+  //   },
+  //   {
+  //     $project: {
+  //       name: 1,
+  //       description: 1,
+  //       price: 1,
+  //       discountedPrice: 1,
+  //       veg: 1,
+  //       restaurant: "$restaurant.name",
+  //       distance: 1, // Include distance in the output
+  //     },
+  //   },
+  // ]);
 
   res.status(200).json({
     success: true,
     restaurants,
-    dishes,
+    // dishes,
     message: "Restaurants and dishes retrieved successfully",
   });
 });

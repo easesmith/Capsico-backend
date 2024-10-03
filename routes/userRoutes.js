@@ -12,9 +12,9 @@ const userController = require("../controllers/userController");
 const authController = require("../controllers/authController");
 const upload = require("../middlewares/imgUpload");
 
-router.get("/get-login", userController.getLogin);
+router.get("/post-login", userController.postLogin);
 router.post("/verify-otp", userController.postVerifyOTP);
-router.get("/search", userController.searchRestaurantsAndDishesA);
+router.get("/search", userController.unifiedSearch);
 
 router.get("/get-otp", userController.getOTP);
 router.post("/signup", authController.userSignup);
