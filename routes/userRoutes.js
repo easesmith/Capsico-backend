@@ -12,7 +12,7 @@ const userController = require("../controllers/userController");
 const authController = require("../controllers/authController");
 const upload = require("../middlewares/imgUpload");
 
-router.get("/post-login", userController.postLogin);
+router.post("/post-login", userController.postLogin);
 router.post("/verify-otp", userController.postVerifyOTP);
 router.post("/search", userController.unifiedSearch);
 
