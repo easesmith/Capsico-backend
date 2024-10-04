@@ -8,12 +8,13 @@ const Content = require("../models/content");
 const Food = require("../models/productModel");
 const Restaurant = require("../models/restaurantModel");
 const Review = require("../models/reviewModel");
-const User = require("../models/userModel");
+const { User, Address } = require("../models/userModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
 const Cuisine = require("../models/cuisineModel");
-
 const { Category, Menu } = require("../models/menuModel");
+
+const mongoose = require("mongoose");
 
 const {
   calculateDistance,
@@ -493,29 +494,32 @@ exports.getAddresses = catchAsync(async (req, res, next) => {
 });
 
 exports.addAddress = catchAsync(async (req, res, next) => {
-  const { lat, lng, state, city, pinCode, addressLine } = req.body;
-  const userId = req.user._id;
+  const { lat, lng, state, city, pinCode, addressLine, userId } = req.body;
 
   if (!userId || !state || !city || !pinCode || !lat || !lng || !addressLine) {
     return next(new AppError("All fields are required", 400));
   }
 
-  const user = await User.findById(userId);
+  const newAddress = await Address.create({
+    user: userId,
+    lat,
+    lng,
+    state,
+    city,
+    pinCode,
+    addressLine,
+  });
 
-  if (!user) {
-    return next(new AppError("User not found", 404));
-  }
-
-  user.addresses.push(req.body);
-  await user.save();
-
-  res.status(200).json({ message: "Address added successfully" });
+  res.status(201).json({
+    success: true,
+    message: "Address added successfully",
+    address: newAddress,
+  });
 });
 
 exports.updateAddress = catchAsync(async (req, res, next) => {
-  const { lat, lng, state, city, pinCode, addressLine } = req.body;
-  const userId = req.user._id;
-  const { addressId } = req.query;
+  const { lat, lng, state, city, pinCode, addressLine, userId, addressId } =
+    req.body;
 
   if (
     !userId ||
@@ -530,57 +534,33 @@ exports.updateAddress = catchAsync(async (req, res, next) => {
     return next(new AppError("All fields are required", 400));
   }
 
-  const user = await User.findById(userId);
-
-  if (!user) {
-    return next(new AppError("User not found", 404));
-  }
-
-  const addressIndex = user.addresses.findIndex(
-    (address) => address._id.toString() === addressId
+  const updatedAddress = await Address.findOneAndUpdate(
+    { _id: addressId, user: userId },
+    { lat, lng, state, city, pinCode, addressLine },
+    { new: true, runValidators: true }
   );
 
-  if (addressIndex === -1) {
+  if (!updatedAddress) {
     return next(new AppError("Address not found", 404));
   }
-
-  user.addresses[addressIndex] = {
-    lat,
-    lng,
-    state,
-    city,
-    pinCode,
-    addressLine,
-  };
-
-  await user.save();
 
   res.status(200).json({
     success: true,
     message: "Address updated successfully",
+    address: updatedAddress,
   });
 });
 
 exports.removeAddress = catchAsync(async (req, res, next) => {
-  const { addressId } = req.query;
-  const userId = req?.user?._id;
+  const { addressId, userId } = req.body;
 
   if (!userId || !addressId) {
     return next(new AppError("All fields are required", 400));
   }
 
-  const user = await User.findById(userId);
+  const result = await Address.deleteOne({ _id: addressId, user: userId });
 
-  if (!user) {
-    return next(new AppError("User not found", 404));
-  }
-
-  const result = await User.updateOne(
-    { _id: userId },
-    { $pull: { addresses: { _id: addressId } } }
-  );
-
-  if (result.nModified === 0) {
+  if (result.deletedCount === 0) {
     return next(new AppError("Address not found or already removed", 404));
   }
 
@@ -1635,12 +1615,15 @@ exports.getRestaurantsByCuisine = catchAsync(async (req, res, next) => {
       new AppError("Cuisine ID, latitude, and longitude are required", 400)
     );
   }
-
+  console.log(cuisineId);
   const latitude = parseFloat(lat);
   const longitude = parseFloat(lng);
   const pageNum = parseInt(page);
   const limitNum = parseInt(limit);
   const skip = (pageNum - 1) * limitNum;
+
+  const radius = 10 / 6378.1; // 10 km radius (Earth's radius in kilometers)
+  const cuisineObjectIds = new mongoose.Types.ObjectId(cuisineId);
 
   const restaurants = await Restaurant.aggregate([
     {
@@ -1649,55 +1632,69 @@ exports.getRestaurantsByCuisine = catchAsync(async (req, res, next) => {
         distanceField: "distance",
         maxDistance: 10000, // 10km in meters
         spherical: true,
+        query: { cuisines: cuisineObjectIds },
       },
     },
-    { $match: { cuisines: cuisineId } },
+    {
+      $lookup: {
+        from: "cuisines",
+        localField: "cuisines",
+        foreignField: "_id",
+        as: "cuisineDetails",
+      },
+    },
+    {
+      $addFields: {
+        cuisineTypes: {
+          $reduce: {
+            input: "$cuisineDetails",
+            initialValue: "",
+            in: {
+              $cond: {
+                if: { $eq: ["$$value", ""] },
+                then: "$$this.name",
+                else: { $concat: ["$$value", " • ", "$$this.name"] },
+              },
+            },
+          },
+        },
+        freeDelivery: {
+          $cond: { if: { $lte: ["$distance", 3000] }, then: true, else: false },
+        }, // 3000 meters = 3 km
+      },
+    },
+    { $sort: { name: 1 } }, // Sort by name, or you can change it to distance if calculated
     { $skip: skip },
     { $limit: limitNum },
     {
       $project: {
         name: 1,
-        logo: 1,
-        cuisineTypes: { $join: { arr: "$cuisineTypes", sep: " • " } },
-        rating: 1,
-        ratingCount: 1,
-        deliveryTime: {
-          $round: [{ $add: [{ $multiply: ["$distance", 0.2] }, 10] }, 0],
-        },
-        distance: { $round: [{ $divide: ["$distance", 1000] }, 1] },
-        priceForOne: 1,
-        offer: {
-          $cond: {
-            if: { $gt: ["$discount", 0] },
-            then: {
-              $concat: [
-                { $toString: { $round: ["$discount", 0] } },
-                "% OFF UPTO ₹90",
-              ],
-            },
-            else: null,
-          },
-        },
-        freeDelivery: { $lte: ["$distance", 3000] },
-        bannerImage: 1,
-        isNew: 1,
-        veg: 1,
+        logo: 1, // Logo of the restaurant
+        bannerImage: 1, // Image or promotional banner
+        cuisineTypes: 1, // Cuisine types in "Pizza • Burger • Desserts" format
+        rating: 1, // Star rating
+        ratingCount: 1, // Rating count, e.g. 850+ ratings
+        deliveryTime: 1, // Delivery time
+        distance: 1, // Distance from user
+        priceForOne: 1, // Price for one
+        freeDelivery: 1, // Free delivery boolean
+        isNew: 1, // "NEW" tag (true/false)
       },
     },
   ]);
 
+  console.log(restaurants);
+
   const totalRestaurants = await Restaurant.countDocuments({
     cuisines: cuisineId,
     "address.coordinates": {
-      $near: {
-        $geometry: {
-          type: "Point",
-          coordinates: [longitude, latitude],
-        },
-        $maxDistance: 10000,
+      $geoWithin: {
+        $centerSphere: [[longitude, latitude], 10 / 6378.1], // 10km radius
       },
     },
   });
+
+  console.log(totalRestaurants);
 
   res.status(200).json({
     status: "success",

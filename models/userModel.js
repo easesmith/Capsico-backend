@@ -1,5 +1,40 @@
 const mongoose = require("mongoose");
 
+const addressSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    lat: {
+      type: Number,
+      required: true,
+    },
+    lng: {
+      type: Number,
+      required: true,
+    },
+    state: {
+      type: String,
+      required: true,
+    },
+    city: {
+      type: String,
+      required: true,
+    },
+    pinCode: {
+      type: String,
+      required: true,
+    },
+    addressLine: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -35,7 +70,7 @@ const userSchema = new mongoose.Schema(
 
     vegMode: {
       type: Boolean,
-      default:false
+      default: false,
     },
 
     vegModeType: {
@@ -45,40 +80,13 @@ const userSchema = new mongoose.Schema(
     isCodAvailable: {
       type: Boolean,
     },
-
-    addresses: [
-      {
-        lat: {
-          type: Number,
-          required: false,
-        },
-        lng: {
-          type: Number,
-          required: false,
-        },
-        state: {
-          type: String,
-          required: false,
-        },
-        city: {
-          type: String,
-          required: false,
-        },
-        pinCode: {
-          type: String,
-          required: false,
-        },
-        addressLine: {
-          type: String,
-        },
-      }
-    ],
   },
   {
     timestamps: true,
   }
 );
 
-
 const User = mongoose.model("User", userSchema);
-module.exports = User;
+const Address = mongoose.model("Address", addressSchema);
+
+module.exports = { User, Address };

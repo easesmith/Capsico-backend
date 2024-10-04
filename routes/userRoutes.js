@@ -79,11 +79,7 @@ router.get("/logout", userController.logout); // 20/07/24
 router.get("/get-all-addresses", userController.getAddresses);
 router.post("/add-address", userController.addAddress);
 router.patch("/update-address", userController.updateAddress); // 31/07/24
-router.delete(
-  "/remove-address",
-  validate.validateFields,
-  userController.removeAddress
-);
+router.delete("/remove-address", userController.removeAddress);
 
 router.get("/get-restaurantNearUser", userController.getRestaurantsNearUser); // 18/07/24
 
