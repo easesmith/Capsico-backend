@@ -6,10 +6,14 @@ const upload = require("../middlewares/imgUpload");
 
 const router = express.Router();
 
-// router.post('/add-restaurant', upload.array("images", 3), restaurantController.addRestaurant); // 19/07/24
+router.post(
+  "/add-restaurant",
+  upload.array("images", 3),
+  restaurantController.addRestaurant
+); // 19/07/24
 // router.post('/login', authController.restaurantLogin); // 19/07/24
 
-// // autheniation
+// autheniation
 // router.use(authController.authenicateRestaurant);
 
 // router.get("/logout", restaurantController.logout); // 20/07/24
@@ -23,7 +27,11 @@ const router = express.Router();
 // router.get('/get-restaurantBy-category', restaurantController.getRestaurantByCategory);
 
 // // Category routes
-// router.post('/add-category', upload.array("images", 3), restaurantController.addCategory);
+router.post(
+  "/add-cuisine",
+  upload.fields([{ name: "image", maxCount: 1 }]),
+  restaurantController.addCuisine
+);
 // router.get('/get-categories', restaurantController.getCategories); // 18/07/24
 
 // // Coupon routes

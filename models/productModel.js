@@ -6,10 +6,6 @@ const foodSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    logo: {
-      type: String,
-      required: false,
-    },
 
     images: [
       {
@@ -43,9 +39,9 @@ const foodSchema = new mongoose.Schema(
       required: true,
     },
 
-    categoryId: {
+    cuisine: {
       type: mongoose.Types.ObjectId,
-      ref: "Category",
+      ref: "Cuisine",
       required: true,
     },
     rating: {
@@ -80,5 +76,5 @@ const foodSchema = new mongoose.Schema(
   }
 );
 
-const Product = mongoose.model("Food", foodSchema);
-module.exports = Product;
+const Food = mongoose.model("Food", foodSchema);
+module.exports = Food;

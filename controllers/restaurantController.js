@@ -1,5 +1,5 @@
 const { default: mongoose } = require("mongoose");
-const Cusine = require("../models/CusineModel");
+const Cuisine = require("../models/cuisineModel");
 const Restaurant = require("../models/restaurantModel");
 const catchAsync = require("../utils/catchAsync");
 const Coupon = require("../models/couponModel");
@@ -25,11 +25,12 @@ exports.addRestaurant = catchAsync(async (req, res, next) => {
     city,
     state,
     pinCode,
-    CusineServes,
+    cuisines,
     isSubscriptionActive,
   } = req.body;
-  const images = req.files;
-  const paths = images.map((image) => image.path);
+  const files = req.files;
+  const logopath = files["logo"].path;
+  const imagespaths = files["images"].map((image) => image.path);
 
   if (
     !name ||
@@ -47,18 +48,14 @@ exports.addRestaurant = catchAsync(async (req, res, next) => {
     return next(new AppError("All fields are required.", 400));
   }
 
-  if (CusineServes && CusineServes.length > 0) {
-    for (let Cusine of CusineServes) {
-      if (!mongoose.Types.ObjectId.isValid(Cusine.CusineId)) {
-        return next(new AppError("Invalid Cusine ID.", 400));
-      }
-      const CusineExists = await Cusine.findById(Cusine.CusineId);
-      if (!CusineExists) {
-        return next(
-          new AppError(`Cusine with ID ${Cusine.CusineId} not found.`, 404)
-        );
-      }
-    }
+  const existingRestaurant = await Restaurant.findOne({
+    $or: [{ email }, { phone }],
+  });
+
+  if (existingRestaurant) {
+    return next(
+      new AppError("A restaurant with this email or phone already exists", 400)
+    );
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -67,7 +64,8 @@ exports.addRestaurant = catchAsync(async (req, res, next) => {
     name,
     phone,
     email,
-    images: paths,
+    logo: logopath,
+    images: imagespaths,
     password: passwordHash,
     address: {
       type: "Point",
@@ -78,7 +76,7 @@ exports.addRestaurant = catchAsync(async (req, res, next) => {
       pinCode,
     },
     restaurantType,
-    CusineServes,
+    cuisines,
     isSubscriptionActive,
   });
 
@@ -129,30 +127,36 @@ exports.searchRestaurants = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.addCusine = catchAsync(async (req, res, next) => {
-  const { name } = req.body;
-  const images = req.files;
-  const paths = images.map((image) => image.path);
-  console.log("images", images);
+exports.addCuisine = catchAsync(async (req, res, next) => {
+  const { name, description } = req.body;
+  const image = req.files.image[0].path;
+  console.log("image", image);
 
   // Validate input
-  if (!name || !images) {
-    return next(new AppError("Name and image are required fields.", 400));
+  // if (!name || !image) {
+  //   return next(new AppError("Name and image are required fields.", 400));
+  // }
+  // Check if cuisine with this name already exists
+  const existingCuisine = await Cuisine.findOne({ name });
+  if (existingCuisine) {
+    return next(new AppError("A cuisine with this name already exists", 400));
   }
 
-  const newCusine = await Cusine.create({
+  const newCusine = await Cuisine.create({
     name,
-    images: paths,
+    description: description,
+    image: image,
   });
 
   res.status(201).json({
     success: true,
     message: "Cusine created successfully",
   });
+  console.log("done");
 });
 
-exports.getCategories = catchAsync(async (req, res, next) => {
-  const categories = await Cusine.find();
+exports.getCuisines = catchAsync(async (req, res, next) => {
+  const Cusine = await Cuisine.find();
 
   res.status(200).json({
     success: true,

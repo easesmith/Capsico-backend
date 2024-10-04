@@ -15,6 +15,11 @@ const upload = require("../middlewares/imgUpload");
 router.post("/post-login", userController.postLogin);
 router.post("/verify-otp", userController.postVerifyOTP);
 router.post("/search", userController.unifiedSearch);
+router.get(
+  "/get-restraunt-menu/:restaurantId",
+  userController.getRestaurantMenu
+);
+router.get("/spotlight", userController.getSpotlightCuisines);
 
 router.get("/get-otp", userController.getOTP);
 router.post("/signup", authController.userSignup);

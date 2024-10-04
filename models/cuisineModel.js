@@ -11,12 +11,15 @@ const cuisineSchema = new mongoose.Schema(
       type: String,
       required: false,
     },
-    images: [
-      {
-        type: String,
-        required: false,
-      },
-    ],
+    image: {
+      type: String,
+      required: false,
+    },
+    spotlight: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   {
     timestamps: true,

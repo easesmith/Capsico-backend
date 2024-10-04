@@ -11,6 +11,9 @@ const Review = require("../models/reviewModel");
 const User = require("../models/userModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
+
+const { Category, Menu } = require("../models/menuModel");
+
 const {
   calculateDistance,
   calculateDeliveryTime,
@@ -1604,5 +1607,76 @@ exports.addComplaint = catchAsync(async (req, res, next) => {
   res.status(201).json({
     success: true,
     message: "Complaint added successfully",
+  });
+});
+//spotlight
+exports.getSpotlightCuisines = catchAsync(async (req, res, next) => {
+  const spotlightCuisines = await Cuisine.find({ spotlight: true });
+
+  if (spotlightCuisines.length === 0) {
+    return next(new AppError("No spotlight cuisines found", 404));
+  }
+
+  res.status(200).json({
+    status: "success",
+    results: spotlightCuisines.length,
+    data: {
+      cuisines: spotlightCuisines,
+    },
+  });
+});
+
+//menu constroller
+const populateCategories = async (categories) => {
+  const populatedCategories = await Promise.all(
+    categories.map(async (category) => {
+      const populatedCategory = await Category.findById(category._id).populate({
+        path: "foodItems",
+        select: "name _id",
+      });
+
+      const subcategories = await Category.find({
+        parentCategory: category._id,
+      });
+      const populatedSubcategories = await populateCategories(subcategories);
+
+      return {
+        _id: populatedCategory._id,
+        name: populatedCategory.name,
+        foodItems: populatedCategory.foodItems,
+        subcategories: populatedSubcategories,
+      };
+    })
+  );
+
+  return populatedCategories;
+};
+
+exports.getRestaurantMenu = catchAsync(async (req, res, next) => {
+  const { restaurantId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+    return next(new AppError("Invalid restaurant ID", 400));
+  }
+
+  const menu = await Menu.findOne({ restaurantId });
+
+  if (!menu) {
+    return next(new AppError("Menu not found for this restaurant", 404));
+  }
+
+  const topLevelCategories = await Category.find({
+    _id: { $in: menu.categories },
+    parentCategory: null,
+  }).sort("order");
+
+  const formattedMenu = await populateCategories(topLevelCategories);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      restaurantId,
+      menu: formattedMenu,
+    },
   });
 });
