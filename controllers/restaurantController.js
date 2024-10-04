@@ -29,7 +29,8 @@ exports.addRestaurant = catchAsync(async (req, res, next) => {
     isSubscriptionActive,
   } = req.body;
   const files = req.files;
-  const logopath = files["logo"].path;
+  console.log(files);
+  const logopath = files["logo"][0].path;
   const imagespaths = files["images"].map((image) => image.path);
 
   if (

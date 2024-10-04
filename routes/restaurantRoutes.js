@@ -8,7 +8,10 @@ const router = express.Router();
 
 router.post(
   "/add-restaurant",
-  upload.array("images", 3),
+  upload.fields([
+    { name: "images", maxCount: 3 },
+    { name: "logo", maxCount: 1 },
+  ]),
   restaurantController.addRestaurant
 ); // 19/07/24
 // router.post('/login', authController.restaurantLogin); // 19/07/24

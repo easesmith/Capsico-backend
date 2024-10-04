@@ -19,6 +19,10 @@ router.get(
   "/get-restraunt-menu/:restaurantId",
   userController.getRestaurantMenu
 );
+router.post(
+  "/get-restraunt-by-cuisine",
+  userController.getRestaurantsByCuisine
+);
 router.get("/spotlight", userController.getSpotlightCuisines);
 
 router.get("/get-otp", userController.getOTP);

@@ -11,6 +11,7 @@ const Review = require("../models/reviewModel");
 const User = require("../models/userModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
+const Cuisine = require("../models/cuisineModel");
 
 const { Category, Menu } = require("../models/menuModel");
 
@@ -256,7 +257,7 @@ exports.unifiedSearch = catchAsync(async (req, res, next) => {
       $geoNear: {
         near: { type: "Point", coordinates },
         distanceField: "distance",
-        maxDistance: 10000, // 10km in meters
+        maxDistance: 1000000, // 1000km in meters
         spherical: true,
       },
     },
@@ -1626,6 +1627,88 @@ exports.getSpotlightCuisines = catchAsync(async (req, res, next) => {
   });
 });
 
+exports.getRestaurantsByCuisine = catchAsync(async (req, res, next) => {
+  const { cuisineId, lat, lng, page = 1, limit = 10 } = req.body;
+
+  if (!cuisineId || !lat || !lng) {
+    return next(
+      new AppError("Cuisine ID, latitude, and longitude are required", 400)
+    );
+  }
+
+  const latitude = parseFloat(lat);
+  const longitude = parseFloat(lng);
+  const pageNum = parseInt(page);
+  const limitNum = parseInt(limit);
+  const skip = (pageNum - 1) * limitNum;
+
+  const restaurants = await Restaurant.aggregate([
+    {
+      $geoNear: {
+        near: { type: "Point", coordinates: [longitude, latitude] },
+        distanceField: "distance",
+        maxDistance: 10000, // 10km in meters
+        spherical: true,
+      },
+    },
+    { $match: { cuisines: cuisineId } },
+    { $skip: skip },
+    { $limit: limitNum },
+    {
+      $project: {
+        name: 1,
+        logo: 1,
+        cuisineTypes: { $join: { arr: "$cuisineTypes", sep: " • " } },
+        rating: 1,
+        ratingCount: 1,
+        deliveryTime: {
+          $round: [{ $add: [{ $multiply: ["$distance", 0.2] }, 10] }, 0],
+        },
+        distance: { $round: [{ $divide: ["$distance", 1000] }, 1] },
+        priceForOne: 1,
+        offer: {
+          $cond: {
+            if: { $gt: ["$discount", 0] },
+            then: {
+              $concat: [
+                { $toString: { $round: ["$discount", 0] } },
+                "% OFF UPTO ₹90",
+              ],
+            },
+            else: null,
+          },
+        },
+        freeDelivery: { $lte: ["$distance", 3000] },
+        bannerImage: 1,
+        isNew: 1,
+        veg: 1,
+      },
+    },
+  ]);
+
+  const totalRestaurants = await Restaurant.countDocuments({
+    cuisines: cuisineId,
+    "address.coordinates": {
+      $near: {
+        $geometry: {
+          type: "Point",
+          coordinates: [longitude, latitude],
+        },
+        $maxDistance: 10000,
+      },
+    },
+  });
+
+  res.status(200).json({
+    status: "success",
+    results: restaurants.length,
+    totalPages: Math.ceil(totalRestaurants / limitNum),
+    currentPage: pageNum,
+    data: {
+      restaurants,
+    },
+  });
+});
 //menu constroller
 const populateCategories = async (categories) => {
   const populatedCategories = await Promise.all(
