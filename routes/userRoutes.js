@@ -24,7 +24,9 @@ router.post(
   userController.getRestaurantsByCuisine
 );
 router.get("/spotlight", userController.getSpotlightCuisines);
+router.get("/get-restaurant/:restaurantId", userController.getRestraunt);
 
+//////////////////////////////////////
 router.get("/get-otp", userController.getOTP);
 router.post("/signup", authController.userSignup);
 
@@ -71,7 +73,7 @@ router.get("/successFacebookLogin", userController.successFacebookLogin);
 router.get("/failureFacebookLogin", userController.failureFacebookLogin);
 
 // autheniation
-router.use(authController.authenicateUser);
+// router.use(authController.authenicateUser);
 
 router.get("/logout", userController.logout); // 20/07/24
 

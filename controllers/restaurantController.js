@@ -4,7 +4,7 @@ const Restaurant = require("../models/restaurantModel");
 const catchAsync = require("../utils/catchAsync");
 const Coupon = require("../models/couponModel");
 const User = require("../models/userModel");
-const Product = require("../models/productModel");
+const Food = require("../models/productModel");
 const AppError = require("../utils/appError");
 const bcrypt = require("bcryptjs");
 const Review = require("../models/reviewModel");
@@ -744,5 +744,78 @@ exports.addComplaint = catchAsync(async (req, res, next) => {
   res.status(201).json({
     success: true,
     message: "Complaint added successfully",
+  });
+});
+
+///////
+
+exports.addFoodrest = catchAsync(async (req, res) => {
+  const {
+    name,
+    price,
+    discountedPrice,
+    veg,
+    description,
+    restaurantId,
+    cuisine,
+    availableTimings,
+  } = req.body;
+
+  // Basic validation
+  if (
+    !name ||
+    !price ||
+    !discountedPrice ||
+    veg === undefined ||
+    !description ||
+    !restaurantId ||
+    !cuisine ||
+    !availableTimings
+  ) {
+    return res
+      .status(400)
+      .json({ success: false, message: "All fields are required" });
+  }
+
+  // Process uploaded files
+  console.log(req.files);
+  const imageUrls = req.files.map((file) => file.path);
+  console.log(imageUrls);
+
+  const parsedTimings = JSON.parse(availableTimings);
+
+  // Validate dates
+  const startDate = new Date(parsedTimings.start);
+  const endDate = new Date(parsedTimings.end);
+
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid date format for availableTimings",
+    });
+  }
+
+  const newFood = new Food({
+    name,
+    price: Number(price),
+    discountedPrice: Number(discountedPrice),
+    veg: veg === "true",
+    description,
+    restaurantId,
+    cuisine,
+    availableTimings: {
+      start: startDate,
+      end: endDate,
+      days: parsedTimings.days,
+    },
+    images: imageUrls,
+  });
+
+  await newFood.save();
+
+  res.status(201).json({
+    success: true,
+    message: "Food item added successfully",
+    data: newFood,
   });
 });

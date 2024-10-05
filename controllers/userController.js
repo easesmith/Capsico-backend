@@ -1732,6 +1732,69 @@ const populateCategories = async (categories) => {
   return populatedCategories;
 };
 
+exports.getRestraunt = catchAsync(async (req, res) => {
+  const { restaurantId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid restaurant ID" });
+  }
+
+  // Fetch restaurant details
+  const restaurant = await Restaurant.findById(restaurantId).select(
+    "name logo"
+  );
+  if (!restaurant) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Restaurant not found" });
+  }
+  const foodItems = await Food.find({ restaurantId }).populate(
+    "cuisine",
+    "name"
+  );
+
+  const currentTime = new Date();
+  const currentDay = currentTime.toLocaleString("en-US", { weekday: "long" });
+
+  const formattedFoodItems = foodItems.map((item) => {
+    const isAvailableNow =
+      item.availableTimings.days.includes(currentDay) &&
+      currentTime >= item.availableTimings.start &&
+      currentTime <= item.availableTimings.end;
+
+    const discountPercentage = Math.round(
+      (1 - item.discountedPrice / item.price) * 100
+    );
+
+    return {
+      id: item._id,
+      name: item.name,
+      price: item.price,
+      discountedPrice: item.discountedPrice,
+      description: item.description,
+      rating: item.rating.toFixed(1),
+      ratingCount: `${item.ratingCount} ratings`,
+      imageUrl: item.images[0], // Assuming the first image is the main image
+      isVeg: item.veg,
+      cuisine: item.cuisine.name,
+      isAvailableNow: isAvailableNow,
+      discountPercentage:
+        discountPercentage > 0 ? `${discountPercentage}% OFF` : null,
+    };
+  });
+
+  res.json({
+    success: true,
+    restaurant: {
+      name: restaurant.name,
+      logo: restaurant.logo, // Assuming the first image is the logo
+    },
+    count: formattedFoodItems.length,
+    data: formattedFoodItems,
+  });
+});
+
 exports.getRestaurantMenu = catchAsync(async (req, res, next) => {
   const { restaurantId } = req.params;
 

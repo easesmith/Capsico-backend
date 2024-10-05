@@ -14,6 +14,12 @@ router.post(
   ]),
   restaurantController.addRestaurant
 ); // 19/07/24
+
+router.post(
+  "/add-food",
+  upload.array("images", 3),
+  restaurantController.addFoodrest
+);
 // router.post('/login', authController.restaurantLogin); // 19/07/24
 
 // autheniation
