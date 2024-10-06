@@ -5,7 +5,7 @@ const Coupon = require("../models/couponModel");
 const Favorite = require("../models/favoriteModel");
 const Order = require("../models/orderModel");
 const Content = require("../models/content");
-const Food = require("../models/productModel");
+const { Food } = require("../models/productModel");
 const Restaurant = require("../models/restaurantModel");
 const Review = require("../models/reviewModel");
 const { User, Address } = require("../models/userModel");
@@ -1795,31 +1795,101 @@ exports.getRestraunt = catchAsync(async (req, res) => {
   });
 });
 
-exports.getRestaurantMenu = catchAsync(async (req, res, next) => {
+exports.getHierarchicalMenu = catchAsync(async (req, res, next) => {
   const { restaurantId } = req.params;
 
-  if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
-    return next(new AppError("Invalid restaurant ID", 400));
+  if (!restaurantId) {
+    return next(new AppError("Restaurant ID is required", 400));
   }
 
-  const menu = await Menu.findOne({ restaurantId });
+  // Get all categories for the restaurant
+  const categories = await Category.find({ restaurantId }).lean();
 
-  if (!menu) {
-    return next(new AppError("Menu not found for this restaurant", 404));
-  }
+  // Create a map of categories by ID for easy lookup
+  const categoryMap = new Map(
+    categories.map((c) => [
+      c._id.toString(),
+      { ...c, subCategories: [], foodItems: [] },
+    ])
+  );
 
-  const topLevelCategories = await Category.find({
-    _id: { $in: menu.categories },
-    parentCategory: null,
-  }).sort("order");
+  // Organize categories into a hierarchy
+  const rootCategories = [];
+  categoryMap.forEach((category) => {
+    if (category.parentCategory) {
+      const parentCategory = categoryMap.get(
+        category.parentCategory.toString()
+      );
+      if (parentCategory) {
+        parentCategory.subCategories.push(category);
+      }
+    } else {
+      rootCategories.push(category);
+    }
+  });
 
-  const formattedMenu = await populateCategories(topLevelCategories);
+  // Get all food items for the restaurant with populated fields
+  const foodItems = await Food.find({ restaurantId })
+    .populate("variationIds")
+    .populate("addOnIds")
+    .populate({
+      path: "customizationIds",
+      populate: {
+        path: "options",
+        model: "CustomizationOption",
+      },
+    })
+    .lean();
+
+  // Assign food items to their categories
+  foodItems.forEach((food) => {
+    const category = categoryMap.get(food.categoryId.toString());
+    if (category) {
+      category.foodItems.push({
+        id: food._id,
+        name: food.name,
+        description: food.description,
+        price: food.price,
+        discountedPrice: food.discountedPrice,
+        image: food.images && food.images.length > 0 ? food.images[0] : null,
+        veg: food.veg,
+        rating: food.rating,
+        preparationTime: food.preparationTime,
+        variations: food.variationIds,
+        addOns: food.addOnIds,
+        customizations: food.customizationIds,
+        isAvailable: food.isAvailable,
+      });
+    }
+  });
+
+  // Function to recursively sort categories and food items
+  const sortHierarchy = (categories) => {
+    categories.sort((a, b) => a.name.localeCompare(b.name));
+    categories.forEach((category) => {
+      if (category.subCategories.length > 0) {
+        sortHierarchy(category.subCategories);
+      }
+      category.foodItems.sort((a, b) => a.name.localeCompare(b.name));
+    });
+  };
+
+  // Sort the entire hierarchy
+  sortHierarchy(rootCategories);
+
+  // Function to remove empty categories
+  const removeEmptyCategories = (categories) => {
+    return categories.filter((category) => {
+      category.subCategories = removeEmptyCategories(category.subCategories);
+      return category.foodItems.length > 0 || category.subCategories.length > 0;
+    });
+  };
+
+  // Remove empty categories
+  const filteredRootCategories = removeEmptyCategories(rootCategories);
 
   res.status(200).json({
-    status: "success",
-    data: {
-      restaurantId,
-      menu: formattedMenu,
-    },
+    success: true,
+    data: filteredRootCategories,
   });
 });

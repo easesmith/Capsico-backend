@@ -17,7 +17,7 @@ router.post("/verify-otp", userController.postVerifyOTP);
 router.post("/search", userController.unifiedSearch);
 router.get(
   "/get-restraunt-menu/:restaurantId",
-  userController.getRestaurantMenu
+  userController.getHierarchicalMenu
 );
 router.post(
   "/get-restraunt-by-cuisine",

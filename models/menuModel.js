@@ -9,10 +9,6 @@ const CategorySchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
-  image: {
-    type: String,
-    trim: true,
-  },
   parentCategory: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Category",
