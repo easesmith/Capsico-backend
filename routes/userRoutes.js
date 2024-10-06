@@ -25,7 +25,7 @@ router.post(
 );
 router.get("/spotlight", userController.getSpotlightCuisines);
 router.get("/get-restaurant/:restaurantId", userController.getRestraunt);
-
+router.get("/food-item-details/:foodId", userController.getFoodItemDetails);
 //////////////////////////////////////
 router.get("/get-otp", userController.getOTP);
 router.post("/signup", authController.userSignup);

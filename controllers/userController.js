@@ -1893,3 +1893,69 @@ exports.getHierarchicalMenu = catchAsync(async (req, res, next) => {
     data: filteredRootCategories,
   });
 });
+
+exports.getFoodItemDetails = catchAsync(async (req, res, next) => {
+  const { foodId } = req.params;
+
+  const foodItem = await Food.findById(foodId)
+    .populate("variationIds")
+    .populate("addOnIds")
+    .populate({
+      path: "customizationIds",
+      populate: {
+        path: "options",
+        model: "CustomizationOption",
+      },
+    });
+
+  if (!foodItem) {
+    return next(new AppError("Food item not found", 404));
+  }
+
+  const response = {
+    id: foodItem._id,
+    name: foodItem.name,
+    description: foodItem.description,
+    price: foodItem.price,
+    discountedPrice: foodItem.discountedPrice,
+    image:
+      foodItem.images && foodItem.images.length > 0 ? foodItem.images[0] : null,
+    veg: foodItem.veg,
+    rating: foodItem.rating,
+    ratingCount: foodItem.ratingCount,
+    preparationTime: foodItem.preparationTime,
+    isAvailable: foodItem.isAvailable,
+    variations: foodItem.variationIds.map((variation) => ({
+      id: variation._id,
+      name: variation.name,
+      price: variation.price,
+      discountedPrice: variation.discountedPrice,
+      isDefault: variation.isDefault,
+      inStock: variation.inStock,
+    })),
+    addOns: foodItem.addOnIds.map((addOn) => ({
+      id: addOn._id,
+      name: addOn.name,
+      price: addOn.price,
+      isDefault: addOn.isDefault,
+      inStock: addOn.inStock,
+    })),
+    customizations: foodItem.customizationIds.map((customization) => ({
+      id: customization._id,
+      name: customization.name,
+      type: customization.type,
+      required: customization.required,
+      options: customization.options.map((option) => ({
+        id: option._id,
+        name: option.name,
+        price: option.price,
+        isDefault: option.isDefault,
+      })),
+    })),
+  };
+
+  res.status(200).json({
+    success: true,
+    data: response,
+  });
+});
